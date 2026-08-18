@@ -1,0 +1,90 @@
+# avixiatools — Progress Tracker
+
+**Status:** Wave 1 (MVP) complete — 15 tools built and verified. Waves 2-5 planned, ~43 tools remaining.
+
+**Tech Stack:**
+- Next.js 16.3.1 (App Router)
+- React 19.2.8 + TypeScript
+- Tailwind CSS v4
+- shadcn/ui components
+- MIT-licensed source reference (attribution included)
+
+**Wave 1 — 15 MVP Tools (built & verified):**
+
+| Category | Tools | Status |
+|---|---|---|
+| Colour | Colour Converter ✅, Contrast Checker ✅, Gradient Generator ✅, Tailwind Shade Generator ✅, Palette Generator ✅ | All working |
+| Typography & Text | Word Counter ✅, PX to REM ✅, Line Height Calculator ✅, Typography Calculator ✅, Paper Sizes ✅, Text Diff ✅ | All working |
+| Calculators | Base Converter ✅, Unit Converter ✅, Time Calculator ✅, Encoding Tools ✅ | All working |
+
+**Unfinished Waves:**
+
+**Wave 2 — Typography & Text remaining (5 tools):**
+- Typo Calculator — convert between pt, picas, inches, agates, ciceros, em, rem
+- Line Height Calculator — already done but could add em/rem support
+- Paper Sizes — already done but could add more ISO/B series
+- Text Diff — already done but could add char-level diff toggle
+- Word Counter — already done but could add reading level stats
+
+**Wave 3 — Colour remaining (5 tools):**
+- Colour Blindness Simulator — simulate deuteranopia, protanopia, tritanopia
+- Gradient Generator — add mesh gradients + more preset shapes
+- Tailwind Shade Generator — add more weight steps or preview CSS vars
+- Palette Generator — add palette collections + save/load palettes
+- Contrast Checker — already done but could add AA/AAA large text badges + ratio details
+
+**Wave 4 — Images & Assets (13 tools):**
+- Image Clipper — trim transparent edges from PNGs
+- Image Converter — convert between PNG, JPEG, WebP, JXL, GIF, BMP, TIFF, ICO, ICNS
+- Favicon Generator — generate favicons from any image
+- SVG Optimiser — optimise and minify SVG files
+- Placeholder Generator — generate placeholder images
+- Base64 Image Encoder — convert images to Base64 strings
+- Palette Extractor — extract colour palettes from images
+- Image Tracer — trace raster images to SVG vectors
+- Paste Image — paste and download an image from clipboard
+- Artwork Enhancer — add colour noise overlay to artwork
+- Background Remover — remove backgrounds from images automatically (ML-based)
+- Substrata — arrange and mark up images in the browser (image editor)
+
+**Wave 5 — Social + Misc + Calculators + Other (14 tools):**
+- Matte Generator — put non-square images on a square matte
+- Seamless Scroll Generator — split images for Instagram carousel scrolls
+- Social Media Cropper — crop images for Instagram, Bluesky & Threads
+- Watermarker — add watermarks to images
+- Harmony Generator — generate colour harmonies
+- Palette Collection — browse curated colour palettes
+- QR Generator — generate styled QR codes with custom colors, shapes, and logos
+- Barcode Generator — generate Data Matrix, Aztec, PDF417, Code 128, EAN-13, and more
+- Meta Tag Generator — generate HTML meta tags
+- Regex Tester — test regular expressions
+- Tailwind Cheat Sheet — quick reference for Tailwind classes
+- Text Scratchpad — text editor with manipulation tools
+- Cipher Decoder — decode classical ciphers manually or auto-detect the cipher
+- Shavian Transliterator — transliterate English text to the Shavian alphabet
+
+**Verification (waves 2-5):**
+- `npm run build` — passes after each wave
+- `npm run lint` — passes
+- `npm test` — 10/10 logic tests continue to pass
+- All tools render interactively at `http://localhost:3000`
+
+**How to Continue (Wave 2+):**
+1. Create a component in `components/tools/<slug>.tsx`
+2. Add an entry to `lib/tools.ts` (TOOLS array + CATEGORIES)
+3. The dynamic route `/tools/[slug]/page.tsx` auto-picks it up via `toolComponents` map in `components/tools/index.tsx`
+4. Reference the MIT-licensed delphitools source for logic accuracy, with attribution in `ACKNOWLEDGEMENTS.md`
+
+**Dependencies already installed:**
+- `culori` (colour math), `lucide-react` (icons), `diff` (text diff)
+- `@types/culori` (TypeScript types for culori)
+- shadcn/ui components: card, input, label, select, textarea, tabs, sheet, scroll-area, separator, badge, tooltip, switch, etc.
+
+**Current verification:**
+- `npm run build` — passes (Next.js 16 Turbopack)
+- `npm run lint` — passes
+- `npm test` — 10/10 logic tests pass
+- All 15 tools render interactively at `http://localhost:3000`
+
+---
+*This file is the single source of truth for project state. If context is lost, resume from here.*
