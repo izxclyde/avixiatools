@@ -13,6 +13,8 @@ import BaseConverter from "@/components/tools/base-converter";
 import UnitConverter from "@/components/tools/unit-converter";
 import TimeCalc from "@/components/tools/time-calc";
 import EncodingTools from "@/components/tools/encoding-tools";
+import JsonFormatter from "@/components/tools/json-formatter";
+import XmlFormatter from "@/components/tools/xml-formatter";
 
 export const toolComponents: Record<string, React.ComponentType> = {
   "colour-converter": ColourConverter,
@@ -30,4 +32,6 @@ export const toolComponents: Record<string, React.ComponentType> = {
   "unit-converter": UnitConverter,
   "time-calc": TimeCalc,
   "encoding-tools": EncodingTools,
+  "json-formatter": JsonFormatter,
+  "xml-formatter": XmlFormatter,
 };

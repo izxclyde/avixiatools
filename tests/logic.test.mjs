@@ -7,6 +7,7 @@ import { countWords, countSentences, countParagraphs, readingTime } from "../lib
 import { pxToRem, remToPx, convertTypo, lineHeightRatio } from "../lib/logic/typography.ts";
 import { unixToDate, dateToUnix, addToDate, weekdayName } from "../lib/logic/dates.ts";
 import { md5Hex, base64Encode, base64Decode, urlEncode, urlDecode, sha256Hex } from "../lib/logic/hash.ts";
+import { formatJson, minifyJson, formatXml, minifyXml } from "../lib/logic/format.ts";
 
 test("colour: parse hex → all formats", () => {
   const c = parseColour("#6633ff");
@@ -94,4 +95,26 @@ test("hash/encoding: known vectors", async () => {
   assert.equal(urlDecode("a%20b%26c"), "a b&c");
   assert.equal(urlDecode("%zz"), null);
   assert.equal(await sha256Hex(""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+});
+
+test("format: json pretty/minify/validate", () => {
+  assert.equal(formatJson('{"a":1,"b":[1,2]}'), '{\n  "a": 1,\n  "b": [\n    1,\n    2\n  ]\n}');
+  assert.equal(minifyJson('{ "a" : 1 }'), '{"a":1}');
+  assert.equal(formatJson("{"), null);
+  assert.equal(minifyJson(""), null);
+});
+
+test("format: xml pretty/minify/validate", () => {
+  assert.equal(
+    formatXml("<a><b>text</b><c/></a>"),
+    "<a>\n  <b>\n    text\n  </b>\n  <c/>\n</a>"
+  );
+  assert.equal(
+    formatXml('<?xml version="1.0"?>\n<a x="1">v</a>'),
+    '<?xml version="1.0"?>\n<a x="1">\n  v\n</a>'
+  );
+  assert.equal(minifyXml("<a>\n  <b>x</b>\n</a>"), "<a><b>x</b></a>");
+  assert.equal(minifyXml("<a><!-- c --><b>x</b></a>"), "<a><!-- c --><b>x</b></a>");
+  assert.equal(formatXml("<a></b>"), null);
+  assert.equal(minifyXml("<a>"), null);
 });

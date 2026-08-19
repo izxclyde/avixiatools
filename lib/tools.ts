@@ -14,6 +14,7 @@ export const CATEGORIES: ToolCategory[] = [
   { id: "colour", name: "Colour" },
   { id: "typography", name: "Typography & Text" },
   { id: "calculators", name: "Calculators" },
+  { id: "developer", name: "Developer" },
 ];
 
 export const TOOLS: Tool[] = [
@@ -106,6 +107,18 @@ export const TOOLS: Tool[] = [
     name: "Encoding Tools",
     category: "calculators",
     description: "Base64, URL encoding, and hash generation",
+  },
+  {
+    slug: "json-formatter",
+    name: "JSON Formatter",
+    category: "developer",
+    description: "Pretty-print, minify, and validate JSON",
+  },
+  {
+    slug: "xml-formatter",
+    name: "XML Formatter",
+    category: "developer",
+    description: "Pretty-print, minify, and validate XML",
   },
 ];
 

@@ -3,6 +3,8 @@
 import { useId, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { CopyButton } from "@/components/copy-button";
 
 // Text input synced with a native colour picker.
@@ -86,6 +88,80 @@ export function StatBox({ label, value }: { label: string; value: string }) {
     <div className="rounded-md border bg-card p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-0.5 text-2xl font-semibold tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+export function FormatterPanel({
+  format,
+  minify,
+  placeholder,
+}: {
+  format: (input: string) => string | null;
+  minify: (input: string) => string | null;
+  placeholder?: string;
+}) {
+  const [input, setInput] = useState("");
+  const [output, setOutput] = useState("");
+  const [error, setError] = useState("");
+
+  const run = (fn: (s: string) => string | null) => {
+    if (!input.trim()) {
+      setOutput("");
+      setError("");
+      return;
+    }
+    const result = fn(input);
+    if (result === null) {
+      setOutput("");
+      setError("Input is not valid — check for syntax errors.");
+    } else {
+      setOutput(result);
+      setError("");
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid gap-1.5">
+        <Label htmlFor="formatter-input">Input</Label>
+        <Textarea
+          id="formatter-input"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder={placeholder}
+          className="min-h-[200px] font-mono text-sm"
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={() => run(format)}>Format</Button>
+        <Button variant="outline" onClick={() => run(minify)}>
+          Minify
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={() => {
+            setInput("");
+            setOutput("");
+            setError("");
+          }}
+        >
+          Clear
+        </Button>
+        {output && <CopyButton value={output} />}
+      </div>
+      {error && <p className="text-sm text-red-400">{error}</p>}
+      {output && (
+        <div className="grid gap-1.5">
+          <Label htmlFor="formatter-output">Output</Label>
+          <Textarea
+            id="formatter-output"
+            readOnly
+            value={output}
+            className="min-h-[200px] font-mono text-sm"
+          />
+        </div>
+      )}
     </div>
   );
 }
