@@ -8,6 +8,7 @@ export type Tool = {
   name: string;
   category: string;
   description: string;
+  enabled?: boolean; // false = hidden from nav/routes; re-enable by flipping back
 };
 
 export const CATEGORIES: ToolCategory[] = [
@@ -23,89 +24,99 @@ export const TOOLS: Tool[] = [
     name: "Colour Converter",
     category: "colour",
     description: "Convert between colour formats",
+    enabled: false,
   },
   {
     slug: "contrast-checker",
     name: "Contrast Checker",
     category: "colour",
     description: "Check WCAG colour contrast compliance",
+    enabled: false,
   },
   {
     slug: "gradient-generator",
     name: "Gradient Generator",
     category: "colour",
     description: "Create linear and radial gradients",
+    enabled: false,
   },
   {
     slug: "tailwind-shades",
     name: "Tailwind Shade Generator",
     category: "colour",
     description: "Generate Tailwind colour scales",
+    enabled: false,
   },
   {
     slug: "palette-generator",
     name: "Palette Generator",
     category: "colour",
     description: "Generate beautiful colour palettes",
+    enabled: false,
   },
   {
     slug: "word-counter",
     name: "Word Counter",
     category: "typography",
     description: "Count words, characters and more",
+    enabled: false,
   },
   {
     slug: "px-to-rem",
     name: "PX to REM",
     category: "typography",
     description: "Convert pixels to rem units",
+    enabled: false,
   },
   {
     slug: "line-height-calc",
     name: "Line Height Calculator",
     category: "typography",
     description: "Calculate optimal line heights",
+    enabled: false,
   },
   {
     slug: "typo-calc",
     name: "Typography Calculator",
     category: "typography",
     description: "Convert between typographic units",
+    enabled: false,
   },
   {
     slug: "paper-sizes",
     name: "Paper Sizes",
     category: "typography",
     description: "Reference for paper dimensions",
+    enabled: false,
   },
   {
     slug: "text-diff",
     name: "Text Diff",
-    category: "typography",
+    category: "developer",
     description: "Compare two texts and highlight differences",
   },
   {
     slug: "base-converter",
     name: "Base Converter",
-    category: "calculators",
+    category: "developer",
     description: "Convert between decimal, hex, binary, and octal",
   },
   {
     slug: "unit-converter",
     name: "Unit Converter",
-    category: "calculators",
+    category: "developer",
     description: "Convert between units of length, weight, data, and more",
   },
   {
     slug: "time-calc",
     name: "Time Calculator",
-    category: "calculators",
+    category: "developer",
     description: "Unix timestamps, date arithmetic, timezone conversion",
   },
   {
     slug: "encoding-tools",
     name: "Encoding Tools",
-    category: "calculators",
+    category: "developer",
     description: "Base64, URL encoding, and hash generation",
   },
   {
@@ -122,7 +133,13 @@ export const TOOLS: Tool[] = [
   },
 ];
 
-export const toolsBySlug = new Map(TOOLS.map((t) => [t.slug, t]));
+export const ACTIVE_TOOLS = TOOLS.filter((t) => t.enabled !== false);
+
+export const toolsBySlug = new Map(ACTIVE_TOOLS.map((t) => [t.slug, t]));
 
 export const toolsByCategory = (categoryId: string) =>
-  TOOLS.filter((t) => t.category === categoryId);
+  ACTIVE_TOOLS.filter((t) => t.category === categoryId);
+
+export const activeCategories = CATEGORIES.filter(
+  (c) => toolsByCategory(c.id).length > 0
+);

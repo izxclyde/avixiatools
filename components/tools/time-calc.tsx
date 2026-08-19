@@ -178,7 +178,7 @@ function ArithmeticTab() {
 
 function TimezoneTab() {
   const [datetime, setDatetime] = useState(
-    new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+    new Date(nowUnix() * 1000 - new Date().getTimezoneOffset() * 60000)
       .toISOString()
       .slice(0, 16)
   );

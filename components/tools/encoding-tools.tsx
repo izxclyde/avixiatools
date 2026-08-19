@@ -55,10 +55,7 @@ function HashTab() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!text) {
-      setHashes({});
-      return;
-    }
+    if (!text) return;
     Promise.all([sha1Hex(text), sha256Hex(text), sha512Hex(text)]).then(
       ([sha1, sha256, sha512]) => {
         if (!cancelled) setHashes({ sha1, sha256, sha512 });
