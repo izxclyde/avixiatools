@@ -1,6 +1,6 @@
 # avixiatools — Progress Tracker
 
-**Status:** Wave 1 (MVP) complete — 15 tools built and verified. Waves 2-5 planned, ~43 tools remaining.
+**Status:** Wave 1 (MVP) complete — 15 tools built and verified, plus 2 Developer tools. Waves 2-5 planned, ~43 tools remaining.
 
 **Tech Stack:**
 - Next.js 16.3.1 (App Router)
@@ -16,6 +16,10 @@
 | Colour | Colour Converter ✅, Contrast Checker ✅, Gradient Generator ✅, Tailwind Shade Generator ✅, Palette Generator ✅ | All working |
 | Typography & Text | Word Counter ✅, PX to REM ✅, Line Height Calculator ✅, Typography Calculator ✅, Paper Sizes ✅, Text Diff ✅ | All working |
 | Calculators | Base Converter ✅, Unit Converter ✅, Time Calculator ✅, Encoding Tools ✅ | All working |
+
+**Developer (2 tools built & verified):**
+- JSON Formatter ✅ — pretty-print, minify, validate
+- XML Formatter ✅ — pretty-print, minify, validate (hand-rolled tokenizer, no dependency)
 
 **Unfinished Waves:**
 
