@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
-import { TOOLS, toolsBySlug } from "@/lib/tools";
+import { ACTIVE_TOOLS, toolsBySlug } from "@/lib/tools";
 import { toolComponents } from "@/components/tools";
 
 export function generateStaticParams() {
-  return TOOLS.map((tool) => ({ slug: tool.slug }));
+  return ACTIVE_TOOLS.map((tool) => ({ slug: tool.slug }));
 }
 
 export async function generateMetadata({

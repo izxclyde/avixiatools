@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Menu, Wrench } from "lucide-react";
-import { CATEGORIES, toolsByCategory } from "@/lib/tools";
+import { activeCategories, toolsByCategory } from "@/lib/tools";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -15,7 +15,7 @@ function NavLinks() {
   const pathname = usePathname();
   return (
     <nav className="flex flex-col gap-6">
-      {CATEGORIES.map((category) => (
+      {activeCategories.map((category) => (
         <div key={category.id}>
           <h2 className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {category.name}

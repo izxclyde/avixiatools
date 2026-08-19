@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { CATEGORIES, toolsByCategory } from "@/lib/tools";
+import { activeCategories, toolsByCategory } from "@/lib/tools";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function Home() {
@@ -18,7 +18,7 @@ export default function Home() {
       </header>
 
       <div className="flex flex-col gap-10">
-        {CATEGORIES.map((category) => (
+        {activeCategories.map((category) => (
           <section key={category.id} aria-labelledby={`cat-${category.id}`}>
             <h2
               id={`cat-${category.id}`}
