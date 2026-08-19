@@ -107,11 +107,21 @@ test("format: json pretty/minify/validate", () => {
 test("format: xml pretty/minify/validate", () => {
   assert.equal(
     formatXml("<a><b>text</b><c/></a>"),
-    "<a>\n  <b>\n    text\n  </b>\n  <c/>\n</a>"
+    "<a>\n  <b>text</b>\n  <c/>\n</a>"
   );
   assert.equal(
     formatXml('<?xml version="1.0"?>\n<a x="1">v</a>'),
-    '<?xml version="1.0"?>\n<a x="1">\n  v\n</a>'
+    '<?xml version="1.0"?>\n<a x="1">v</a>'
+  );
+  assert.equal(
+    formatXml("<root><a>x</a><p>Hello <b>world</b></p></root>"),
+    "<root>\n  <a>x</a>\n  <p>Hello <b>world</b></p>\n</root>"
+  );
+  assert.equal(formatXml("<p>Hello <b>world</b></p>"), "<p>Hello <b>world</b></p>");
+  assert.equal(formatXml("<a>  spaced  </a>"), "<a>  spaced  </a>");
+  assert.equal(
+    formatXml("<a><b><c>x</c></b></a>"),
+    "<a>\n  <b>\n    <c>x</c>\n  </b>\n</a>"
   );
   assert.equal(minifyXml("<a>\n  <b>x</b>\n</a>"), "<a><b>x</b></a>");
   assert.equal(minifyXml("<a><!-- c --><b>x</b></a>"), "<a><!-- c --><b>x</b></a>");
