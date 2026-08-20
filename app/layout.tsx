@@ -39,7 +39,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col">
+      <body className="flex min-h-dvh flex-col">
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground"
@@ -49,11 +49,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ThemeProvider>
           <div className="flex flex-1">
             <Sidebar />
-            <main id="main" className="min-w-0 flex-1 pl-14 lg:pl-0">
-              {children}
-            </main>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <main id="main" className="min-w-0 flex-1 pl-14 lg:pl-0">
+                {children}
+              </main>
+              <Footer />
+            </div>
           </div>
-          <Footer />
         </ThemeProvider>
         <CommandPalette />
       </body>
