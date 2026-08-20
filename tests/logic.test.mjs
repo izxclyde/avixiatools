@@ -229,6 +229,8 @@ test("sql-format: dialect auto-detection", () => {
   assert.equal(detectDialect("SELECT `x` FROM `t`"), "mysql");
   assert.equal(detectDialect("SELECT $1::int FROM t"), "postgresql");
   assert.equal(detectDialect("SELECT a FROM b"), "sql");
+});
+
 test("sql: += concatenation with VB-style & values", () => {
   const result = convertSqlConcat(`q = " SELECT GPS_ASSET_ID "
 q += "   FROM TMS_GPS_HDR "
@@ -271,4 +273,21 @@ Sql = Sql & "SELECT B FROM T2"`, "vb");
   assert.equal(result.variants.length, 2);
   assert.ok(result.variants.some((variant) => variant.sql.includes("SELECT A FROM T1")));
   assert.ok(result.variants.some((variant) => variant.sql.includes("SELECT B FROM T2")));
+});
+
+test("sql-format: parameterized T-SQL is detected and formatted", () => {
+  const input = "SELECT CANCEL_FLAG FROM TMS_DO_HDR WITH (NOLOCK) WHERE CANCEL_FLAG = @cancelType AND AMEND_NO = 251";
+  assert.equal(detectDialect(input), "transactsql");
+  assert.equal(
+    formatSql(input, "auto", sqlOpts),
+    "SELECT\n  CANCEL_FLAG\nFROM\n  TMS_DO_HDR\nWITH\n  (NOLOCK)\nWHERE\n  CANCEL_FLAG = @cancelType\n  AND AMEND_NO = 251"
+  );
+});
+
+test("sql-format: wrong dialect falls back instead of crashing", () => {
+  const input = "SELECT * FROM t WHERE x = @x";
+  assert.equal(
+    formatSql(input, "sql", sqlOpts),
+    "SELECT\n  *\nFROM\n  t\nWHERE\n  x = @x"
+  );
 });

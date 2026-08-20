@@ -44,12 +44,18 @@ export type SqlFormatOptions = {
 // formatter is a safe fallback when no signal matches.
 export function detectDialect(input: string): Exclude<SqlDialect, "auto"> {
   const s = input.trim();
-  if (/\bGO\b|\bGETDATE\s*\(|\[[\w\s]+\]|N'|^\s*USE\s+\w+/i.test(s)) return "transactsql";
+  if (/\$\d+|\b::\w+\b|\bILIKE\b|\bRETURNING\b/i.test(s)) return "postgresql";
   if (/\bSYSDATE\b|\bDUAL\b|\bNVL\s*\(|:=|TO_NUMBER\s*\(|\bNO_DATA_FOUND\b/i.test(s)) return "plsql";
   if (/`[^`]+`|\bAUTO_INCREMENT\b|\bON DUPLICATE KEY\b/i.test(s)) return "mysql";
-  if (/\$\d+|\b::\w+\b|\bILIKE\b|\bRETURNING\b/i.test(s)) return "postgresql";
+  if (
+    /\bGO\b|\bGETDATE\s*\(|\[[\w\s]+\]|N'|^\s*USE\s+\w+|@@?\w+|\bWITH\s*\(\s*(?:NOLOCK|ROWLOCK|UPDLOCK|HOLDLOCK|READCOMMITTED|REPEATABLEREAD|SERIALIZABLE|READUNCOMMITTED)\s*\)|#\w+|\bIDENTITY\s*\(/i.test(s)
+  )
+    return "transactsql";
   return "sql";
 }
+
+// Try likely dialects so one bad choice never crashes or loses text.
+const FALLBACK_LANGUAGES: Exclude<SqlDialect, "auto">[] = ["transactsql", "postgresql", "plsql", "mysql", "sql"];
 
 export function formatSql(
   input: string,
@@ -57,15 +63,29 @@ export function formatSql(
   options: SqlFormatOptions
 ): string {
   const language = dialect === "auto" ? detectDialect(input) : dialect;
-  return format(input, {
-    language,
-    keywordCase: options.keywordCase,
-    tabWidth: options.useTabs ? 1 : options.tabWidth,
-    useTabs: options.useTabs,
-    logicalOperatorNewline:
-      options.logicalOperatorNewline === "none"
-        ? undefined
-        : options.logicalOperatorNewline,
-    linesBetweenQueries: options.linesBetweenQueries,
-  });
+  const attempt = (lang: Exclude<SqlDialect, "auto">) =>
+    format(input, {
+      language: lang,
+      keywordCase: options.keywordCase,
+      tabWidth: options.useTabs ? 1 : options.tabWidth,
+      useTabs: options.useTabs,
+      logicalOperatorNewline:
+        options.logicalOperatorNewline === "none"
+          ? undefined
+          : options.logicalOperatorNewline,
+      linesBetweenQueries: options.linesBetweenQueries,
+    });
+  try {
+    return attempt(language);
+  } catch {
+    for (const fallback of FALLBACK_LANGUAGES) {
+      if (fallback === language) continue;
+      try {
+        return attempt(fallback);
+      } catch {
+        // try next
+      }
+    }
+    return input;
+  }
 }
