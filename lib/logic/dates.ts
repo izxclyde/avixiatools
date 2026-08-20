@@ -16,6 +16,40 @@ export function formatUnix(seconds: number): string | null {
   return isNaN(date.getTime()) ? null : date.toLocaleString();
 }
 
+export type EpochPrecision = "s" | "ms" | "us" | "ns";
+
+const EPOCH_SCALE: Record<EpochPrecision, number> = {
+  s: 1,
+  ms: 1e3,
+  us: 1e6,
+  ns: 1e9,
+};
+
+// Heuristic by integer-digit count: ≤10 → seconds, 11-13 → ms, 14-16 → µs, ≥17 → ns.
+export function detectEpochPrecision(value: string): EpochPrecision {
+  const digits = value.replace(/^-/, "").split(".")[0].length;
+  if (digits <= 10) return "s";
+  if (digits <= 13) return "ms";
+  if (digits <= 16) return "us";
+  return "ns";
+}
+
+export function epochToSeconds(value: string): number | null {
+  const clean = value.trim();
+  if (!/^-?\d+(\.\d+)?$/.test(clean)) return null;
+  return Number(clean) / EPOCH_SCALE[detectEpochPrecision(clean)];
+}
+
+export function epochPrecisions(date: Date): Record<EpochPrecision, string> {
+  const ms = date.getTime();
+  return {
+    s: String(Math.floor(ms / 1000)),
+    ms: String(ms),
+    us: String(Math.round(ms * 1e3)),
+    ns: String(Math.round(ms * 1e6)),
+  };
+}
+
 export function addToDate(
   date: Date,
   delta: { days?: number; months?: number; years?: number }

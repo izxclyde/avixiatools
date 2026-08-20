@@ -5,7 +5,7 @@ import { convertBase, isValidNumber } from "../lib/logic/numbers.ts";
 import { convertUnit, UNIT_CATEGORIES } from "../lib/logic/units.ts";
 import { countWords, countSentences, countParagraphs, readingTime } from "../lib/logic/text.ts";
 import { pxToRem, remToPx, convertTypo, lineHeightRatio } from "../lib/logic/typography.ts";
-import { unixToDate, dateToUnix, addToDate, weekdayName } from "../lib/logic/dates.ts";
+import { unixToDate, dateToUnix, addToDate, weekdayName, detectEpochPrecision, epochToSeconds, epochPrecisions } from "../lib/logic/dates.ts";
 import { md5Hex, base64Encode, base64Decode, urlEncode, urlDecode, sha256Hex } from "../lib/logic/hash.ts";
 import { formatJson, minifyJson, formatXml, minifyXml } from "../lib/logic/format.ts";
 import { convertSqlConcat, parseHelpers } from "../lib/logic/sql.ts";
@@ -94,6 +94,24 @@ test("dates: unix round-trip and arithmetic", () => {
   const next = addToDate(new Date(2026, 0, 31), { months: 1 });
   assert.equal(weekdayName(next), "Saturday");
   assert.ok(Math.abs(next.getTime() - new Date(2026, 1, 28).getTime()) < 1000);
+});
+
+test("dates: epoch precision detection and conversion", () => {
+  assert.equal(detectEpochPrecision("1750000000"), "s");
+  assert.equal(detectEpochPrecision("1750000000000"), "ms");
+  assert.equal(detectEpochPrecision("1750000000000000"), "us");
+  assert.equal(detectEpochPrecision("1750000000000000000"), "ns");
+  assert.equal(epochToSeconds("1750000000000"), 1750000000);
+  assert.equal(epochToSeconds("1750000000000000"), 1750000000);
+  assert.ok(Math.abs(epochToSeconds("1750000000000000000") - 1750000000) < 1);
+  assert.equal(epochToSeconds("0"), 0);
+  assert.equal(epochToSeconds("-86400"), -86400);
+  assert.equal(epochToSeconds("1750000000.5"), 1750000000.5);
+  assert.equal(epochToSeconds("abc"), null);
+  assert.equal(epochToSeconds(""), null);
+  const p = epochPrecisions(unixToDate(1750000000));
+  assert.equal(p.s, "1750000000");
+  assert.equal(p.ms, "1750000000000");
 });
 
 test("hash/encoding: known vectors", async () => {
