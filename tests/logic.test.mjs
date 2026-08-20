@@ -9,6 +9,15 @@ import { unixToDate, dateToUnix, addToDate, weekdayName } from "../lib/logic/dat
 import { md5Hex, base64Encode, base64Decode, urlEncode, urlDecode, sha256Hex } from "../lib/logic/hash.ts";
 import { formatJson, minifyJson, formatXml, minifyXml } from "../lib/logic/format.ts";
 import { convertSqlConcat, parseHelpers } from "../lib/logic/sql.ts";
+import { formatSql, detectDialect } from "../lib/logic/sql-format.ts";
+
+const sqlOpts = {
+  keywordCase: "upper",
+  tabWidth: 2,
+  useTabs: false,
+  logicalOperatorNewline: "before",
+  linesBetweenQueries: 1,
+};
 
 test("colour: parse hex → all formats", () => {
   const c = parseColour("#6633ff");
@@ -173,6 +182,53 @@ test("sql: helper parsing preserves helper expressions and values", () => {
   assert.equal(result.variants[0].sql, "SELECT * FROM T WITH (NOLOCK)");
 });
 
+test("sql-format: keyword case, indentation, and operator placement", () => {
+  assert.equal(
+    formatSql("select a, b from t where x = 1 and y = 2", "sql", sqlOpts),
+    "SELECT\n  a,\n  b\nFROM\n  t\nWHERE\n  x = 1\n  AND y = 2"
+  );
+  assert.equal(
+    formatSql("select a from t", "sql", { ...sqlOpts, keywordCase: "lower" }),
+    "select\n  a\nfrom\n  t"
+  );
+  assert.equal(
+    formatSql("SELECT * FROM t WHERE a = 1 AND b = 2", "sql", { ...sqlOpts, logicalOperatorNewline: "after" }),
+    "SELECT\n  *\nFROM\n  t\nWHERE\n  a = 1 AND\n  b = 2"
+  );
+});
+
+test("sql-format: dialects keep their syntax", () => {
+  assert.equal(
+    formatSql("SELECT [col], GETDATE() FROM [dbo].[tab] WHERE [id] = 1", "transactsql", sqlOpts),
+    "SELECT\n  [col],\n  GETDATE()\nFROM\n  [dbo].[tab]\nWHERE\n  [id] = 1"
+  );
+  assert.equal(
+    formatSql("SELECT v := x FROM dual", "plsql", sqlOpts),
+    "SELECT\n  v := x\nFROM\n  dual"
+  );
+  assert.equal(
+    formatSql("SELECT `name` FROM `users` WHERE id = 1", "mysql", sqlOpts),
+    "SELECT\n  `name`\nFROM\n  `users`\nWHERE\n  id = 1"
+  );
+  assert.equal(
+    formatSql("SELECT id::int FROM t WHERE name ILIKE '%a%'", "postgresql", sqlOpts),
+    "SELECT\n  id::int\nFROM\n  t\nWHERE\n  name ILIKE '%a%'"
+  );
+});
+
+test("sql-format: comments and strings are preserved", () => {
+  assert.equal(
+    formatSql("select a from t -- comment here", "sql", sqlOpts),
+    "SELECT\n  a\nFROM\n  t -- comment here"
+  );
+});
+
+test("sql-format: dialect auto-detection", () => {
+  assert.equal(detectDialect("SELECT [id] FROM [dbo].[t] GO"), "transactsql");
+  assert.equal(detectDialect("SELECT * FROM dual"), "plsql");
+  assert.equal(detectDialect("SELECT `x` FROM `t`"), "mysql");
+  assert.equal(detectDialect("SELECT $1::int FROM t"), "postgresql");
+  assert.equal(detectDialect("SELECT a FROM b"), "sql");
 test("sql: += concatenation with VB-style & values", () => {
   const result = convertSqlConcat(`q = " SELECT GPS_ASSET_ID "
 q += "   FROM TMS_GPS_HDR "

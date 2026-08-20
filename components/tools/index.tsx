@@ -6,6 +6,7 @@ import EncodingTools from "@/components/tools/encoding-tools";
 import JsonFormatter from "@/components/tools/json-formatter";
 import XmlFormatter from "@/components/tools/xml-formatter";
 import SqlConverter from "@/components/tools/sql-converter";
+import SqlFormatter from "@/components/tools/sql-formatter";
 
 export const toolComponents: Record<string, React.ComponentType> = {
   "text-diff": TextDiff,
@@ -16,4 +17,5 @@ export const toolComponents: Record<string, React.ComponentType> = {
   "json-formatter": JsonFormatter,
   "xml-formatter": XmlFormatter,
   "sql-converter": SqlConverter,
+  "sql-formatter": SqlFormatter,
 };

@@ -123,7 +123,7 @@ export function FormatterPanel({
   storageKey,
 }: {
   format: (input: string) => string | null;
-  minify: (input: string) => string | null;
+  minify?: (input: string) => string | null;
   placeholder?: string;
   example?: string;
   storageKey?: string;
@@ -162,9 +162,11 @@ export function FormatterPanel({
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Button onClick={() => run(format)}>Format</Button>
-        <Button variant="outline" onClick={() => run(minify)}>
-          Minify
-        </Button>
+        {minify && (
+          <Button variant="outline" onClick={() => run(minify)}>
+            Minify
+          </Button>
+        )}
         {example && (
           <Button variant="ghost" onClick={() => setInput(example)}>
             Try an example
