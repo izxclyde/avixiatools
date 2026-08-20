@@ -147,6 +147,12 @@ export const TOOLS: Tool[] = [
     description: "Convert concatenated C# and VB SQL to parameterized queries",
   },
   {
+    slug: "sql-to-code",
+    name: "SQL to Code",
+    category: "developer",
+    description: "Generate legacy VB/C# concatenation code from a SQL query",
+  },
+  {
     slug: "sql-formatter",
     name: "SQL Formatter",
     category: "developer",

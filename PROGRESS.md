@@ -21,6 +21,7 @@
 - JSON Formatter ✅ — pretty-print, minify, validate
 - XML Formatter ✅ — pretty-print, minify, validate (hand-rolled tokenizer, no dependency)
 - SQL Formatter ✅ — pretty-print for SQL Server/T-SQL, Oracle/PLSQL, MySQL, PostgreSQL, SQLite, BigQuery, Snowflake, and more (via `sql-formatter`); dialect auto-detect (incl. `@param`/table-hint T-SQL), keyword case, indent, operator placement; falls back across dialects instead of erroring on parameterized SQL
+- SQL to Code ✅ — reverse of SQL Query Converter: generate legacy VB (`&=`)/C# (`+=`) concatenation code from a SQL query with `@params`; configurable variable name, parameter prefix, and string-value quoting (hand-rolled tokenizer, no dependency)
 - Base Converter, Unit Converter, Time Calculator, Encoding Tools — moved from Calculators
 - Text Diff — moved from Typography & Text
 
