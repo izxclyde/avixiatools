@@ -17,9 +17,10 @@
 | Typography & Text | Word Counter ✅, PX to REM ✅, Line Height Calculator ✅, Typography Calculator ✅, Paper Sizes ✅, Text Diff ✅ | Disabled (Text Diff moved to Developer) |
 | Calculators | Base Converter ✅, Unit Converter ✅, Time Calculator ✅, Encoding Tools ✅ | Moved to Developer |
 
-**Developer (7 tools built & verified):**
+**Developer (8 tools built & verified):**
 - JSON Formatter ✅ — pretty-print, minify, validate
 - XML Formatter ✅ — pretty-print, minify, validate (hand-rolled tokenizer, no dependency)
+- SQL Formatter ✅ — pretty-print for SQL Server/T-SQL, Oracle/PLSQL, MySQL, PostgreSQL, SQLite, BigQuery, Snowflake, and more (via `sql-formatter`); dialect auto-detect, keyword case, indent, operator placement
 - Base Converter, Unit Converter, Time Calculator, Encoding Tools — moved from Calculators
 - Text Diff — moved from Typography & Text
 
@@ -82,7 +83,7 @@
 4. Reference the MIT-licensed delphitools source for logic accuracy, with attribution in `ACKNOWLEDGEMENTS.md`
 
 **Dependencies already installed:**
-- `culori` (colour math), `lucide-react` (icons), `diff` (text diff)
+- `culori` (colour math), `lucide-react` (icons), `diff` (text diff), `sql-formatter` (SQL formatting)
 - `@types/culori` (TypeScript types for culori)
 - shadcn/ui components: card, input, label, select, textarea, tabs, sheet, scroll-area, separator, badge, tooltip, switch, etc.
 
@@ -90,7 +91,7 @@
 - `npm run build` — passes (Next.js 16 Turbopack)
 - `npm run lint` — passes
 - `npm test` — 10/10 logic tests pass
-- All 15 tools render interactively at `http://localhost:3000`
+- All 8 Developer tools render interactively at `http://localhost:3000`
 
 ---
 *This file is the single source of truth for project state. If context is lost, resume from here.*

@@ -146,6 +146,12 @@ export const TOOLS: Tool[] = [
     category: "developer",
     description: "Convert concatenated C# and VB SQL to parameterized queries",
   },
+  {
+    slug: "sql-formatter",
+    name: "SQL Formatter",
+    category: "developer",
+    description: "Pretty-print SQL for SQL Server, Oracle, MySQL, and more",
+  },
 ];
 
 export const ACTIVE_TOOLS = TOOLS.filter((t) => t.enabled !== false);
