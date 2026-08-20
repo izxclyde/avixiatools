@@ -305,11 +305,11 @@ test("sql-to-code: VB output uses &=, quotes string params, and initialises the 
   );
 });
 
-test("sql-to-code: C# output uses += with no prefix and a string initialiser", () => {
+test("sql-to-code: C# output uses += with no prefix and an initialiser", () => {
   const result = sqlToCode("SELECT * FROM T WHERE X = @x", { language: "cs" });
   assert.ok(result);
   assert.equal(result.parameters[0].expr, "x");
-  assert.match(result.code, /^string q = "";/);
+  assert.match(result.code, /^q = "";/);
   assert.match(result.code, /q \+= "SELECT \* FROM T "/);
   assert.match(result.code, /q \+= "WHERE X = '" \+ x \+ "'";/);
 });
@@ -328,7 +328,7 @@ test("sql-to-code: round-trips through convertSqlConcat", () => {
 test("sql-to-code: variable name is configurable", () => {
   const result = sqlToCode("SELECT * FROM T WHERE A = @a", { language: "cs", variable: "sSql" });
   assert.ok(result);
-  assert.match(result.code, /^string sSql = "";/);
+  assert.match(result.code, /^sSql = "";/);
   assert.match(result.code, /sSql \+= "SELECT \* FROM T "/);
   assert.match(result.code, /sSql \+= "WHERE A = '" \+ a \+ "'";/);
 });
