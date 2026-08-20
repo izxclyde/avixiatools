@@ -11,6 +11,7 @@ import { formatJson, minifyJson, formatXml, minifyXml } from "../lib/logic/forma
 import { convertSqlConcat, parseHelpers } from "../lib/logic/sql.ts";
 import { sqlToCode } from "../lib/logic/sql-to-code.ts";
 import { formatSql, detectDialect } from "../lib/logic/sql-format.ts";
+import { generateWiFiString, generateVCardString } from "../lib/logic/qr.ts";
 
 const sqlOpts = {
   keywordCase: "upper",
@@ -369,4 +370,47 @@ test("sql-to-code: literals and comments are preserved, @ inside quotes ignored"
 
 test("sql-to-code: empty input returns null", () => {
   assert.equal(sqlToCode("   ", { language: "vb" }), null);
+});
+
+test("qr: wifi string builds the ZXing WIFI: spec", () => {
+  assert.equal(
+    generateWiFiString({ ssid: "MyNet", password: "p@ss", securityType: "WPA", isHidden: true }),
+    "WIFI:T:WPA;S:MyNet;P:p@ss;H:true;;"
+  );
+  assert.equal(
+    generateWiFiString({ ssid: "Cafe", password: "", securityType: "nopass", isHidden: false }),
+    "WIFI:T:nopass;S:Cafe;;"
+  );
+  assert.equal(
+    generateWiFiString({ ssid: "A;B\"C", password: "x", securityType: "WEP", isHidden: false }),
+    "WIFI:T:WEP;S:A\\;B\\\"C;P:x;;"
+  );
+});
+
+test("qr: wifi string requires ssid and password for secured networks", () => {
+  assert.equal(generateWiFiString({ ssid: "", password: "x", securityType: "WPA", isHidden: false }), "");
+  assert.equal(generateWiFiString({ ssid: "Net", password: "", securityType: "WPA", isHidden: false }), "");
+});
+
+test("qr: vcard builds a 3.0 block with filled fields only", () => {
+  const vcard = generateVCardString({
+    firstName: "John",
+    lastName: "Doe",
+    organization: "Acme",
+    title: "",
+    email: "john@example.com",
+    phone: "",
+    website: "https://example.com",
+    address: "1 Main St",
+  });
+  assert.match(vcard, /^BEGIN:VCARD\nVERSION:3.0\n/);
+  assert.match(vcard, /N:Doe;John;;;/);
+  assert.match(vcard, /FN:John Doe/);
+  assert.match(vcard, /ORG:Acme/);
+  assert.match(vcard, /EMAIL:john@example.com/);
+  assert.match(vcard, /URL:https:\/\/example.com/);
+  assert.match(vcard, /ADR:;;1 Main St;;;;/);
+  assert.doesNotMatch(vcard, /TITLE:/);
+  assert.doesNotMatch(vcard, /TEL:/);
+  assert.match(vcard, /END:VCARD$/);
 });

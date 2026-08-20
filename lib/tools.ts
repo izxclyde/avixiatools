@@ -1,4 +1,4 @@
-import { Calculator, Code2, Palette, Type, type LucideIcon } from "lucide-react";
+import { Calculator, Code2, Palette, QrCode, Type, type LucideIcon } from "lucide-react";
 
 export type ToolCategory = {
   id: string;
@@ -10,6 +10,7 @@ export const CATEGORY_ICONS: Record<string, LucideIcon> = {
   typography: Type,
   calculators: Calculator,
   developer: Code2,
+  other: QrCode,
 };
 
 export type Tool = {
@@ -25,6 +26,7 @@ export const CATEGORIES: ToolCategory[] = [
   { id: "typography", name: "Typography & Text" },
   { id: "calculators", name: "Calculators" },
   { id: "developer", name: "Developer" },
+  { id: "other", name: "Other" },
 ];
 
 export const TOOLS: Tool[] = [
@@ -157,6 +159,12 @@ export const TOOLS: Tool[] = [
     name: "SQL Formatter",
     category: "developer",
     description: "Pretty-print SQL for SQL Server, Oracle, MySQL, and more",
+  },
+  {
+    slug: "qr-generator",
+    name: "QR Generator",
+    category: "other",
+    description: "Generate styled QR codes with custom colors, shapes, and logos",
   },
 ];
 
