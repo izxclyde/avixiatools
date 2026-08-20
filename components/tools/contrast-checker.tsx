@@ -66,7 +66,9 @@ export default function ContrastChecker() {
             {ratio === null ? (
               <Badge variant="secondary">invalid colours</Badge>
             ) : passes(check.min) ? (
-              <Badge className="bg-emerald-500/20 text-emerald-400">Pass</Badge>
+              <Badge className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                Pass
+              </Badge>
             ) : (
               <Badge variant="destructive">Fail</Badge>
             )}

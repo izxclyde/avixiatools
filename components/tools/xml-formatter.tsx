@@ -9,6 +9,8 @@ export default function XmlFormatter() {
       format={formatXml}
       minify={minifyXml}
       placeholder={'<?xml version="1.0"?>\n<root><item id="1">value</item></root>'}
+      example={'<?xml version="1.0"?>\n<root><item id="1">value</item><item id="2">value</item></root>'}
+      storageKey="avixia:xml:input"
     />
   );
 }

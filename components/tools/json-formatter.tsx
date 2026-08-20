@@ -9,6 +9,8 @@ export default function JsonFormatter() {
       format={formatJson}
       minify={minifyJson}
       placeholder={'{"name": "avixiatools", "tools": 17}'}
+      example={'{"name": "avixiatools", "tools": 17, "free": true}'}
+      storageKey="avixia:json:input"
     />
   );
 }

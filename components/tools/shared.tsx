@@ -1,11 +1,34 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { CopyButton } from "@/components/copy-button";
+
+// State that survives reloads, per tool.
+export function usePersistedState<T>(key: string, initial: T) {
+  const [value, setValue] = useState<T>(() => {
+    if (typeof window === "undefined") return initial;
+    try {
+      const raw = window.localStorage.getItem(key);
+      return raw !== null ? (JSON.parse(raw) as T) : initial;
+    } catch {
+      return initial;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      // storage unavailable
+    }
+  }, [key, value]);
+
+  return [value, setValue] as const;
+}
 
 // Text input synced with a native colour picker.
 export function ColourInput({
@@ -96,12 +119,16 @@ export function FormatterPanel({
   format,
   minify,
   placeholder,
+  example,
+  storageKey,
 }: {
   format: (input: string) => string | null;
   minify: (input: string) => string | null;
   placeholder?: string;
+  example?: string;
+  storageKey?: string;
 }) {
-  const [input, setInput] = useState("");
+  const [input, setInput] = usePersistedState<string>(storageKey ?? "", "");
   const [output, setOutput] = useState("");
   const [error, setError] = useState("");
 
@@ -138,6 +165,11 @@ export function FormatterPanel({
         <Button variant="outline" onClick={() => run(minify)}>
           Minify
         </Button>
+        {example && (
+          <Button variant="ghost" onClick={() => setInput(example)}>
+            Try an example
+          </Button>
+        )}
         <Button
           variant="ghost"
           onClick={() => {
@@ -150,7 +182,7 @@ export function FormatterPanel({
         </Button>
         {output && <CopyButton value={output} />}
       </div>
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
       {output && (
         <div className="grid gap-1.5">
           <Label htmlFor="formatter-output">Output</Label>

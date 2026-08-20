@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CopyRow } from "@/components/tools/shared";
+import { CopyRow, usePersistedState } from "@/components/tools/shared";
 import { UNIT_CATEGORIES, convertUnit, type UnitCategory } from "@/lib/logic/units";
 
 const pretty = (v: number) =>
@@ -21,7 +21,7 @@ const pretty = (v: number) =>
 
 export default function UnitConverter() {
   const [categoryId, setCategoryId] = useState("length");
-  const [value, setValue] = useState("1");
+  const [value, setValue] = usePersistedState("avixia:unit:value", "1");
   const [from, setFrom] = useState("km");
   const [to, setTo] = useState("m");
 
@@ -45,8 +45,9 @@ export default function UnitConverter() {
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 sm:grid-cols-4">
         <div className="grid gap-1.5">
-          <Label>Category</Label>
+          <Label htmlFor="unit-category">Category</Label>
           <Select
+            id="unit-category"
             value={categoryId}
             onValueChange={(v) => v && changeCategory(v)}
           >
@@ -72,8 +73,12 @@ export default function UnitConverter() {
           />
         </div>
         <div className="grid gap-1.5">
-          <Label>From</Label>
-          <Select value={from} onValueChange={(v) => v && setFrom(v)}>
+          <Label htmlFor="unit-from">From</Label>
+          <Select
+            id="unit-from"
+            value={from}
+            onValueChange={(v) => v && setFrom(v)}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -87,8 +92,8 @@ export default function UnitConverter() {
           </Select>
         </div>
         <div className="grid gap-1.5">
-          <Label>To</Label>
-          <Select value={to} onValueChange={(v) => v && setTo(v)}>
+          <Label htmlFor="unit-to">To</Label>
+          <Select id="unit-to" value={to} onValueChange={(v) => v && setTo(v)}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>

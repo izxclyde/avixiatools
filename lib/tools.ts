@@ -1,6 +1,15 @@
+import { Calculator, Code2, Palette, Type, type LucideIcon } from "lucide-react";
+
 export type ToolCategory = {
   id: string;
   name: string;
+};
+
+export const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  colour: Palette,
+  typography: Type,
+  calculators: Calculator,
+  developer: Code2,
 };
 
 export type Tool = {
