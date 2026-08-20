@@ -1,6 +1,6 @@
 # avixiatools — Progress Tracker
 
-**Status:** Wave 1 (MVP) complete — 15 tools built and verified, plus 2 Developer tools. Waves 2-5 planned, ~43 tools remaining. Site is currently **Developer-only**: the Colour and Typography & Text tools are disabled (kept on disk, hidden from nav/routes).
+**Status:** Wave 1 (MVP) complete — 15 tools built and verified, plus 3 Developer/Other tools. Waves 2-5 planned, ~42 tools remaining. Site is currently **Developer + Other**: the Colour and Typography & Text tools are disabled (kept on disk, hidden from nav/routes).
 
 **Tech Stack:**
 - Next.js 16.3.1 (App Router)
@@ -24,6 +24,9 @@
 - SQL to Code ✅ — reverse of SQL Query Converter: generate legacy VB (`&=`)/C# (`+=`) concatenation code from a SQL query with `@params`; configurable variable name, parameter prefix, and string-value quoting (hand-rolled tokenizer, no dependency)
 - Base Converter, Unit Converter, Time Calculator, Encoding Tools — moved from Calculators
 - Text Diff — moved from Typography & Text
+
+**Other (1 tool built & verified):**
+- QR Generator ✅ — styled QR codes with custom colors, shapes, and logos (via `qr-code-styling`, `jszip`); Single, WiFi, vCard, and Batch tabs; presets, PNG/SVG export, copy, and info caption (adapted from MIT-licensed delphitools, attributed in `ACKNOWLEDGEMENTS.md`)
 
 **Pages:**
 - Report an issue ✅ — `/report` creates GitHub issues automatically via the API (server-side `app/api/report` route, needs `GITHUB_TOKEN`); honeypot spam guard; footer + site credit link to hcnatividad.com
@@ -65,7 +68,6 @@
 - Watermarker — add watermarks to images
 - Harmony Generator — generate colour harmonies
 - Palette Collection — browse curated colour palettes
-- QR Generator — generate styled QR codes with custom colors, shapes, and logos
 - Barcode Generator — generate Data Matrix, Aztec, PDF417, Code 128, EAN-13, and more
 - Meta Tag Generator — generate HTML meta tags
 - Regex Tester — test regular expressions
@@ -94,8 +96,8 @@
 **Current verification:**
 - `npm run build` — passes (Next.js 16 Turbopack)
 - `npm run lint` — passes
-- `npm test` — 10/10 logic tests pass
-- All 8 Developer tools render interactively at `http://localhost:3000`
+- `npm test` — 36/36 logic tests pass
+- All 9 Developer/Other tools render interactively at `http://localhost:3000`
 
 ---
 *This file is the single source of truth for project state. If context is lost, resume from here.*
