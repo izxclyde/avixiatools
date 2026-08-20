@@ -229,4 +229,46 @@ test("sql-format: dialect auto-detection", () => {
   assert.equal(detectDialect("SELECT `x` FROM `t`"), "mysql");
   assert.equal(detectDialect("SELECT $1::int FROM t"), "postgresql");
   assert.equal(detectDialect("SELECT a FROM b"), "sql");
+test("sql: += concatenation with VB-style & values", () => {
+  const result = convertSqlConcat(`q = " SELECT GPS_ASSET_ID "
+q += "   FROM TMS_GPS_HDR "
+q += "  WHERE DOOR_CODE = '" & _DoorCode & "' "`, "vb");
+  assert.ok(result);
+  assert.equal(result.parameters.length, 1);
+  assert.equal(result.parameters[0].name, "@DoorCode");
+  assert.match(result.code, /q \+= "  WHERE DOOR_CODE = " & @DoorCode/);
+  assert.ok(result.variants[0].sql.includes("SELECT GPS_ASSET_ID"));
+  assert.ok(result.variants[0].sql.includes("WHERE DOOR_CODE = @DoorCode"));
+});
+
+test("sql: C# += and VB &= compound assignments", () => {
+  const csharp = convertSqlConcat(`q = "SELECT * FROM T"
+q += " WHERE X='" + x + "'";`, "cs");
+  assert.ok(csharp);
+  assert.equal(csharp.parameters.length, 1);
+  assert.ok(csharp.variants[0].sql.includes("WHERE X=@x"));
+
+  const vb = convertSqlConcat(`Q = "SELECT * FROM T"
+Q &= " WHERE Y='" & y & "'"`, "vb");
+  assert.ok(vb);
+  assert.equal(vb.parameters.length, 1);
+  assert.ok(vb.variants[0].sql.includes("WHERE Y=@y"));
+});
+
+test("sql: fresh-start assignment without self-reference", () => {
+  const result = convertSqlConcat(`Q = "SELECT * FROM T WHERE A='" & a & "'"
+Q = Q & " AND B='" & b & "'"`, "vb");
+  assert.ok(result);
+  assert.equal(result.parameters.length, 2);
+  assert.ok(result.variants[0].sql.includes("WHERE A=@a"));
+  assert.ok(result.variants[0].sql.includes("AND B=@b"));
+});
+
+test("sql: multiple query variables each get a rendered query", () => {
+  const result = convertSqlConcat(`Q = Q & "SELECT A FROM T1"
+Sql = Sql & "SELECT B FROM T2"`, "vb");
+  assert.ok(result);
+  assert.equal(result.variants.length, 2);
+  assert.ok(result.variants.some((variant) => variant.sql.includes("SELECT A FROM T1")));
+  assert.ok(result.variants.some((variant) => variant.sql.includes("SELECT B FROM T2")));
 });

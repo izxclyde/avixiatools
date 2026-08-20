@@ -50,7 +50,9 @@ function isLiteral(raw: string, language: "vb" | "cs") {
     : /^"[\s\S]*"$/.test(value);
 }
 
-function splitConcat(expression: string, operator: "&" | "+", language: "vb" | "cs"): Item[] {
+// ponytail: split on both & and + so mixed legacy code (VB-style & with
+// C#-style +=) keeps working; neither operator is ambiguous in practice here.
+function splitConcat(expression: string, language: "vb" | "cs"): Item[] {
   const items: Item[] = [];
   let start = 0;
   let quote = false;
@@ -75,7 +77,7 @@ function splitConcat(expression: string, operator: "&" | "+", language: "vb" | "
       braceDepth++;
     } else if (language === "cs" && char === "}") {
       braceDepth = Math.max(0, braceDepth - 1);
-    } else if (char === operator && braceDepth === 0) {
+    } else if ((char === "&" || char === "+") && braceDepth === 0) {
       const raw = expression.slice(start, i);
       items.push({ raw, start, end: i, literal: isLiteral(raw, language) });
       start = i + 1;
@@ -160,46 +162,65 @@ function branchState(line: string, language: "vb" | "cs", stack: string[]) {
   }
 }
 
+type AssignmentMatch = { target: string; expression: string; compound: boolean };
+
+// Any `X = ...`, `X += ...` or `X &= ...` assignment is a candidate; the RHS is
+// later validated to actually be a string-building concatenation.
+function matchAssignment(line: string, language: "vb" | "cs"): AssignmentMatch | null {
+  const pattern = /^(\s*)([A-Za-z_]\w*)\s*(?:(?:\+=|&=)\s*(.*)|=\s*(.*?);?\s*)$/;
+  const match = line.match(pattern);
+  if (match) return { target: match[2], compound: !!match[3], expression: (match[3] ?? match[4] ?? "").replace(/;?\s*$/, "").trim() };
+  if (language === "cs") {
+    const interpolation = line.match(/^(\s*)(?:var|[A-Za-z_]\w*)\s+([A-Za-z_]\w*)\s*=\s*(\$"[\s\S]*");?\s*$/);
+    if (interpolation) return { target: interpolation[2], compound: false, expression: (interpolation[3] ?? "").replace(/;?\s*$/, "") };
+  }
+  return null;
+}
+
+function isChain(match: AssignmentMatch, items: Item[], language: "vb" | "cs") {
+  if (!items.some((item) => item.literal)) return false;
+  if (items.length > 1) return true;
+  if (match.compound) return true;
+  return language === "cs" && /^\s*\$["@]/.test(match.expression);
+}
+
+function isInterpolated(expression: string) {
+  return /^\s*\$["@]/.test(expression);
+}
+
 export function convertSqlConcat(input: string, requested: SqlLanguage = "auto", helpersText = ""): SqlConvertResult | null {
   if (!input.trim()) return null;
   const language = requested === "auto" ? detectLanguage(input) : requested;
-  const operator = language === "vb" ? "&" : "+";
   const helpers = parseHelpers(helpersText);
   const params: SqlParam[] = [];
   const used = new Map<string, string>();
-  const stack: string[] = [];
-  const records: { path: string[]; pieces: string[] }[] = [];
+  const records: { target: string; path: string[]; pieces: string[] }[] = [];
   const outputLines: string[] = [];
-  let target: string | null = null;
+  const lines = input.split("\n").map((line) => line.replace(/\r$/, ""));
 
-  for (const originalLine of input.split("\n")) {
-    branchState(originalLine, language, stack);
-    const line = originalLine.replace(/\r$/, "");
-    const pattern = language === "vb"
-      ? /^(\s*)([A-Za-z_]\w*)\s*(?:&=\s*(.*)|=\s*\2\s*&\s*(.*))$/i
-      : /^(\s*)([A-Za-z_]\w*)\s*(?:\+=\s*(.*)|=\s*\2\s*\+\s*(.*?);?\s*)$/;
-    let match = line.match(pattern);
-    if (!match && language === "cs") {
-      const interpolation = line.match(/^(\s*)(?:var|[A-Za-z_]\w*)\s+([A-Za-z_]\w*)\s*=\s*(\$"[\s\S]*");?\s*$/);
-      if (interpolation) match = [interpolation[0], interpolation[1], interpolation[2], interpolation[3], undefined] as RegExpMatchArray;
-    }
+  // Pass 1: find variables that hold concatenated SQL so plain-literal openers
+  // to those variables (e.g. `Q = "SELECT * FROM T"`) still count as fragments.
+  const targets = new Set<string>();
+  for (const line of lines) {
+    const match = matchAssignment(line, language);
+    if (match && isChain(match, splitConcat(match.expression, language), language)) targets.add(match.target);
+  }
+
+  const stack: string[] = [];
+  for (const line of lines) {
+    branchState(line, language, stack);
+    const match = matchAssignment(line, language);
     if (!match) {
       outputLines.push(line);
       continue;
     }
-    const expression = match[3] ?? match[4] ?? "";
-    const currentTarget = match[2];
-    if (!target) target = currentTarget;
-    if (currentTarget !== target) {
+    const items = splitConcat(match.expression, language);
+    const plainOpener = !match.compound && !isInterpolated(match.expression) && items.length === 1 && items[0].literal && targets.has(match.target);
+    if (!isChain(match, items, language) && !plainOpener) {
       outputLines.push(line);
       continue;
     }
 
-    const items = splitConcat(expression, operator, language);
-    if (!items.some((item) => item.literal)) {
-      outputLines.push(line);
-      continue;
-    }
     const replacements: { start: number; end: number; text: string }[] = [];
     const parameterized = new Map<number, string>();
     for (let i = 1; i < items.length - 1; i++) {
@@ -237,24 +258,32 @@ export function convertSqlConcat(input: string, requested: SqlLanguage = "auto",
         continue;
       }
       const expr = item.raw.trim();
+      if (i === 0 && expr === match.target) continue;
       if (parameterized.has(i)) {
         rendered.push(parameterized.get(i)!);
       } else {
         rendered.push(helperValue(expr, helpers) ?? expr);
       }
     }
-    const rebuiltExpression = [...replacements].sort((a, b) => b.start - a.start).reduce((value, replacement) => value.slice(0, replacement.start) + replacement.text + value.slice(replacement.end), expression);
-    const expressionStart = line.indexOf(expression);
-    outputLines.push(line.slice(0, expressionStart) + rebuiltExpression + line.slice(expressionStart + expression.length));
-    records.push({ path: [...stack], pieces: rendered });
+    const rebuiltExpression = [...replacements].sort((a, b) => b.start - a.start).reduce((value, replacement) => value.slice(0, replacement.start) + replacement.text + value.slice(replacement.end), match.expression);
+    const expressionStart = line.indexOf(match.expression);
+    outputLines.push(line.slice(0, expressionStart) + rebuiltExpression + line.slice(expressionStart + match.expression.length));
+    records.push({ target: match.target, path: [...stack], pieces: rendered });
   }
 
   if (!records.length) return null;
-  const paths = [[], ...records.map((record) => record.path)].filter((path, index, all) => all.findIndex((candidate) => candidate.join("\u0000") === path.join("\u0000")) === index);
-  const variants = paths.map((path) => ({
-    label: path.length ? path.join(" / ") : "Default path",
-    sql: records.filter((record) => record.path.every((segment, index) => path[index] === segment)).flatMap((record) => record.pieces).join(""),
-  })).filter((variant) => variant.sql.trim());
+  const targetsList = [...new Set(records.map((record) => record.target))];
+  const multiple = targetsList.length > 1;
+  const variants: SqlVariant[] = [];
+  for (const target of targetsList) {
+    const targetRecords = records.filter((record) => record.target === target);
+    const paths = [[], ...targetRecords.map((record) => record.path)].filter((path, index, all) => all.findIndex((candidate) => candidate.join("\u0000") === path.join("\u0000")) === index);
+    for (const path of paths) {
+      const label = (multiple ? `${target} — ` : "") + (path.length ? path.join(" / ") : "Default path");
+      const sql = targetRecords.filter((record) => record.path.length <= path.length && record.path.every((segment, index) => path[index] === segment)).flatMap((record) => record.pieces).join("");
+      if (sql.trim()) variants.push({ label, sql });
+    }
+  }
 
   return { language, code: outputLines.join("\n"), parameters: params, variants };
 }
