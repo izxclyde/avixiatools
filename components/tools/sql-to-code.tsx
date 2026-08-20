@@ -84,7 +84,8 @@ export default function SqlToCode() {
           </div>
           <p className="text-xs text-muted-foreground">
             Every line uses {language === "cs" ? "`+=`" : "`&=`"}. The first
-            line initialises the variable to an empty string.
+            line initialises the variable to an empty string. In C#, declare
+            and initialise the variable yourself.
           </p>
         </div>
       </div>
