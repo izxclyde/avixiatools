@@ -25,6 +25,9 @@
 - Base Converter, Unit Converter, Time Calculator, Encoding Tools — moved from Calculators
 - Text Diff — moved from Typography & Text
 
+**Pages:**
+- Report an issue ✅ — `/report` creates GitHub issues automatically via the API (server-side `app/api/report` route, needs `GITHUB_TOKEN`); honeypot spam guard; footer + site credit link to hcnatividad.com
+
 **Unfinished Waves:**
 
 **Wave 2 — Typography & Text remaining (5 tools):**
