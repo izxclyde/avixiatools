@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
@@ -25,6 +25,13 @@ export const metadata: Metadata = {
     "A collection of small, free tools that run entirely in your browser. No logins, no tracking.",
 };
 
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fbfafd" },
+    { media: "(prefers-color-scheme: dark)", color: "#201e23" },
+  ],
+};
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
@@ -42,7 +49,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ThemeProvider>
           <div className="flex flex-1">
             <Sidebar />
-            <main id="main" className="min-w-0 flex-1 lg:pl-0">
+            <main id="main" className="min-w-0 flex-1 pl-14 lg:pl-0">
               {children}
             </main>
           </div>
