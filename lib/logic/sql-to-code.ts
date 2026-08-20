@@ -266,7 +266,8 @@ export function sqlToCode(query: string, options: SqlToCodeOptions): SqlToCodeRe
   if (quoteValues) applyQuotes(lines);
 
   const exprOf = (name: string) => prefix + name;
-  const code = lines.map((line) => renderLine(variable, line, language, exprOf)).join("\n");
+  const init = language === "vb" ? `${variable} = ""` : `string ${variable} = "";`;
+  const code = [init, ...lines.map((line) => renderLine(variable, line, language, exprOf))].join("\n");
 
   const parameters: SqlToCodeParam[] = [];
   const seen = new Set<string>();
