@@ -8,6 +8,7 @@ import { pxToRem, remToPx, convertTypo, lineHeightRatio } from "../lib/logic/typ
 import { unixToDate, dateToUnix, addToDate, weekdayName } from "../lib/logic/dates.ts";
 import { md5Hex, base64Encode, base64Decode, urlEncode, urlDecode, sha256Hex } from "../lib/logic/hash.ts";
 import { formatJson, minifyJson, formatXml, minifyXml } from "../lib/logic/format.ts";
+import { convertSqlConcat, parseHelpers } from "../lib/logic/sql.ts";
 
 test("colour: parse hex → all formats", () => {
   const c = parseColour("#6633ff");
@@ -127,4 +128,47 @@ test("format: xml pretty/minify/validate", () => {
   assert.equal(minifyXml("<a><!-- c --><b>x</b></a>"), "<a><!-- c --><b>x</b></a>");
   assert.equal(formatXml("<a></b>"), null);
   assert.equal(minifyXml("<a>"), null);
+});
+
+test("sql: VB concatenation becomes parameterized and renders branches", () => {
+  const input = `Q = Q & " SELECT CANCEL_FLAG FROM TMS_DO_HDR " & DB.NoLock & " "
+Q = Q & " WHERE "
+Q = Q & " CANCEL_FLAG = '" & _cancelType & "' "
+Q = Q & " AND AMEND_NO = 251"
+If _fltrBy = "B" Then
+    Q = Q & " AND BARCODE='" & _DONo & "'"
+ElseIf _fltrBy = "M" Then
+    Q = Q & " AND (MANUAL_DONO='" & _DONo & "' OR DOC_NO='" & _DONo & "')"
+End If`;
+  const result = convertSqlConcat(input, "vb", `Public Shared ReadOnly Property NoLock As String = "WITH (NOLOCK)"`);
+  assert.ok(result);
+  assert.equal(result.parameters.length, 2);
+  assert.match(result.code, /CANCEL_FLAG = " & @cancelType/);
+  assert.match(result.code, /BARCODE=\" & @DONo/);
+  assert.ok(result.variants.some((variant) => variant.sql.includes("CANCEL_FLAG = @cancelType")));
+  assert.match(result.variants[0].sql, /WITH \(NOLOCK\)/);
+  assert.ok(result.variants.some((variant) => variant.sql.includes("BARCODE=@DONo")));
+  assert.ok(result.variants.some((variant) => variant.sql.includes("MANUAL_DONO=@DONo")));
+  assert.match(result.code, /AMEND_NO = 251/);
+});
+
+test("sql: C# concatenation and interpolation", () => {
+  const concatenated = convertSqlConcat(`Q = Q + "SELECT * FROM T WHERE ID='" + id + "'";`, "cs");
+  assert.ok(concatenated);
+  assert.match(concatenated.code, /ID=\" \+ @id/);
+  assert.equal(concatenated.parameters[0].expr, "id");
+
+  const interpolated = convertSqlConcat(`var q = $"SELECT * FROM T WHERE CODE='{code}'";`, "cs");
+  assert.ok(interpolated);
+  assert.match(interpolated.code, /CODE=@code/);
+  assert.equal(interpolated.variants[0].sql, "SELECT * FROM T WHERE CODE=@code");
+});
+
+test("sql: helper parsing preserves helper expressions and values", () => {
+  const helpers = parseHelpers(`Public Shared ReadOnly Property NoLock As String = "WITH (NOLOCK)"`);
+  assert.ok(helpers.names.has("NoLock"));
+  const result = convertSqlConcat(`Q = Q & "SELECT * FROM T " & DB.NoLock`, "vb", `Public Shared ReadOnly Property NoLock As String = "WITH (NOLOCK)"`);
+  assert.ok(result);
+  assert.equal(result.parameters.length, 0);
+  assert.equal(result.variants[0].sql, "SELECT * FROM T WITH (NOLOCK)");
 });

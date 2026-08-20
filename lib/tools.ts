@@ -140,6 +140,12 @@ export const TOOLS: Tool[] = [
     category: "developer",
     description: "Pretty-print, minify, and validate XML",
   },
+  {
+    slug: "sql-converter",
+    name: "SQL Query Converter",
+    category: "developer",
+    description: "Convert concatenated C# and VB SQL to parameterized queries",
+  },
 ];
 
 export const ACTIVE_TOOLS = TOOLS.filter((t) => t.enabled !== false);
