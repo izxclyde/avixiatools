@@ -26,7 +26,7 @@ export default function ReportPage() {
           href="https://hcnatividad.com"
           className="underline underline-offset-2 hover:text-foreground"
         >
-          H.C. Natividad
+          Harren Natividad
         </Link>
         . Issues are tracked in the{" "}
         <Link
