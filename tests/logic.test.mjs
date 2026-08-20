@@ -9,6 +9,7 @@ import { unixToDate, dateToUnix, addToDate, weekdayName } from "../lib/logic/dat
 import { md5Hex, base64Encode, base64Decode, urlEncode, urlDecode, sha256Hex } from "../lib/logic/hash.ts";
 import { formatJson, minifyJson, formatXml, minifyXml } from "../lib/logic/format.ts";
 import { convertSqlConcat, parseHelpers } from "../lib/logic/sql.ts";
+import { sqlToCode } from "../lib/logic/sql-to-code.ts";
 import { formatSql, detectDialect } from "../lib/logic/sql-format.ts";
 
 const sqlOpts = {
@@ -290,4 +291,62 @@ test("sql-format: wrong dialect falls back instead of crashing", () => {
     formatSql(input, "sql", sqlOpts),
     "SELECT\n  *\nFROM\n  t\nWHERE\n  x = @x"
   );
+});
+
+test("sql-to-code: VB output uses &= and quotes string params", () => {
+  const result = sqlToCode("SELECT * FROM T WHERE X = @x", { language: "vb" });
+  assert.ok(result);
+  assert.equal(result.parameters.length, 1);
+  assert.equal(result.parameters[0].name, "@x");
+  assert.equal(result.parameters[0].expr, "_x");
+  assert.equal(
+    result.code,
+    'q &= "SELECT * FROM T "\nq &= "WHERE X = \'" & _x & "\'"'
+  );
+});
+
+test("sql-to-code: C# output uses += with no prefix", () => {
+  const result = sqlToCode("SELECT * FROM T WHERE X = @x", { language: "cs" });
+  assert.ok(result);
+  assert.equal(result.parameters[0].expr, "x");
+  assert.match(result.code, /^q \+= "SELECT \* FROM T "/);
+  assert.match(result.code, /q \+= "WHERE X = '" \+ x \+ "'";/);
+});
+
+test("sql-to-code: round-trips through convertSqlConcat", () => {
+  const input = "SELECT CANCEL_FLAG FROM TMS_DO_HDR WITH (NOLOCK)\nWHERE CANCEL_FLAG = @cancelType\nAND AMEND_NO = 251";
+  const result = sqlToCode(input, { language: "vb" });
+  assert.ok(result);
+  const back = convertSqlConcat(result.code, "vb");
+  assert.ok(back);
+  assert.equal(back.variants[0].sql, "SELECT CANCEL_FLAG FROM TMS_DO_HDR WITH (NOLOCK) WHERE CANCEL_FLAG = @cancelType AND AMEND_NO = 251");
+  assert.equal(back.parameters[0].name, "@cancelType");
+  assert.equal(back.parameters[0].expr, "_cancelType");
+});
+
+test("sql-to-code: variable name is configurable", () => {
+  const result = sqlToCode("SELECT * FROM T WHERE A = @a", { language: "cs", variable: "sSql" });
+  assert.ok(result);
+  assert.match(result.code, /^sSql \+= "SELECT \* FROM T "/);
+  assert.match(result.code, /sSql \+= "WHERE A = '" \+ a \+ "'";/);
+});
+
+test("sql-to-code: quoteValues false emits bare fragments", () => {
+  const result = sqlToCode("SELECT * FROM T WHERE N = @n", { language: "vb", quoteValues: false });
+  assert.ok(result);
+  assert.match(result.code, /q &= "SELECT \* FROM T "/);
+  assert.match(result.code, /q &= "WHERE N = " & _n/);
+});
+
+test("sql-to-code: literals and comments are preserved, @ inside quotes ignored", () => {
+  const result = sqlToCode("SELECT 'O''Brien' AS name -- keep @this\nFROM T WHERE X = @x", { language: "vb" });
+  assert.ok(result);
+  assert.equal(result.parameters.length, 1);
+  assert.equal(result.parameters[0].name, "@x");
+  assert.match(result.code, /O''Brien/);
+  assert.match(result.code, /keep @this/);
+});
+
+test("sql-to-code: empty input returns null", () => {
+  assert.equal(sqlToCode("   ", { language: "vb" }), null);
 });
