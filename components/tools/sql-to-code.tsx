@@ -83,7 +83,8 @@ export default function SqlToCode() {
             <Label htmlFor="quote" className="text-xs text-muted-foreground">Quote string values</Label>
           </div>
           <p className="text-xs text-muted-foreground">
-            Every line uses {language === "cs" ? "`+=`" : "`&=`"}. In C#, the variable must be initialised before the first line.
+            Every line uses {language === "cs" ? "`+=`" : "`&=`"}. The first
+            line initialises the variable to an empty string.
           </p>
         </div>
       </div>
