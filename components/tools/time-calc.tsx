@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -16,13 +17,15 @@ import { CopyRow, StatBox, usePersistedState } from "@/components/tools/shared";
 import {
   nowUnix,
   unixToDate,
-  dateToUnix,
   formatUnix,
   addToDate,
   weekdayName,
   formatInTimezone,
   timezoneOffset,
   dateDiffDays,
+  detectEpochPrecision,
+  epochToSeconds,
+  epochPrecisions,
 } from "@/lib/logic/dates";
 
 const TIMEZONES = [
@@ -46,24 +49,42 @@ const TIMEZONES = [
   "Pacific/Auckland",
 ];
 
+function LiveEpoch() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const p = epochPrecisions(now);
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <StatBox label="Now (seconds)" value={p.s} />
+      <StatBox label="Now (milliseconds)" value={p.ms} />
+      <StatBox label="Now (microseconds)" value={p.us} />
+      <StatBox label="Now (nanoseconds)" value={p.ns} />
+    </div>
+  );
+}
+
 function UnixTab() {
   const [ts, setTs] = usePersistedState("avixia:time:unix", "");
   const [datetime, setDatetime] = usePersistedState("avixia:time:datetime", "");
 
-  const tsNum = Number(ts);
-  const parsed = Number.isFinite(tsNum) && ts !== "" ? formatUnix(tsNum) : null;
+  const seconds = epochToSeconds(ts);
+  const precision = ts.trim() ? detectEpochPrecision(ts) : null;
+  const parsed = seconds !== null ? formatUnix(seconds) : null;
   const local =
-    parsed !== null ? unixToDate(tsNum).toString() : null;
+    parsed !== null ? unixToDate(seconds!).toString() : null;
 
-  const datetimeNum = datetime
-    ? dateToUnix(new Date(datetime))
-    : null;
+  const date = datetime ? new Date(datetime) : null;
+  const precisions = date && !isNaN(date.getTime()) ? epochPrecisions(date) : null;
 
   return (
     <div className="flex flex-col gap-4">
+      <LiveEpoch />
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="grid gap-1.5">
-          <Label htmlFor="ts">Unix timestamp (seconds)</Label>
+          <Label htmlFor="ts">Epoch timestamp</Label>
           <div className="flex gap-2">
             <Input
               id="ts"
@@ -79,6 +100,14 @@ function UnixTab() {
               Now
             </Button>
           </div>
+          {precision && (
+            <span className="text-xs text-muted-foreground">
+              Detected precision:{" "}
+              <Badge variant="secondary">
+                {precision === "s" ? "seconds" : precision === "ms" ? "milliseconds" : precision === "us" ? "microseconds" : "nanoseconds"}
+              </Badge>
+            </span>
+          )}
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="dt">Date & time</Label>
@@ -97,8 +126,13 @@ function UnixTab() {
           <CopyRow label="Full (local)" value={local ?? ""} mono={false} />
         </div>
       )}
-      {datetimeNum !== null && (
-        <CopyRow label="Unix timestamp" value={String(datetimeNum)} />
+      {precisions && (
+        <div className="flex flex-col gap-2">
+          <CopyRow label="Epoch seconds" value={precisions.s} />
+          <CopyRow label="Epoch milliseconds" value={precisions.ms} />
+          <CopyRow label="Epoch microseconds" value={precisions.us} />
+          <CopyRow label="Epoch nanoseconds" value={precisions.ns} />
+        </div>
       )}
     </div>
   );
