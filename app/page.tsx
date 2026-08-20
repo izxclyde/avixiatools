@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { activeCategories, toolsByCategory } from "@/lib/tools";
+import { activeCategories, toolsByCategory, CATEGORY_ICONS } from "@/lib/tools";
 import { Card, CardContent } from "@/components/ui/card";
+import { SearchTrigger } from "@/components/search-trigger";
 
 export default function Home() {
   return (
@@ -15,36 +16,47 @@ export default function Home() {
           Everything runs in your browser — no logins, no tracking, no data
           leaves your machine.
         </p>
+        <div className="mt-5">
+          <SearchTrigger />
+        </div>
       </header>
 
       <div className="flex flex-col gap-10">
-        {activeCategories.map((category) => (
-          <section key={category.id} aria-labelledby={`cat-${category.id}`}>
-            <h2
-              id={`cat-${category.id}`}
-              className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-            >
-              {category.name}
-            </h2>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {toolsByCategory(category.id).map((tool) => (
-                <Link key={tool.slug} href={`/tools/${tool.slug}`}>
-                  <Card className="group h-full transition-colors hover:border-primary/50">
-                    <CardContent className="flex h-full flex-col justify-between gap-3 p-4">
-                      <div>
-                        <h3 className="font-medium">{tool.name}</h3>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {tool.description}
-                        </p>
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          </section>
-        ))}
+        {activeCategories.map((category) => {
+          const Icon = CATEGORY_ICONS[category.id];
+          return (
+            <section key={category.id} aria-labelledby={`cat-${category.id}`}>
+              <h2
+                id={`cat-${category.id}`}
+                className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+              >
+                {Icon && <Icon className="h-3.5 w-3.5" />}
+                {category.name}
+              </h2>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {toolsByCategory(category.id).map((tool) => (
+                  <Link
+                    key={tool.slug}
+                    href={`/tools/${tool.slug}`}
+                    className="focus-visible:outline-none"
+                  >
+                    <Card className="group h-full transition-colors hover:border-primary/50 focus-visible:ring-3 focus-visible:ring-ring/50">
+                      <CardContent className="flex h-full flex-col justify-between gap-3 p-4">
+                        <div>
+                          <h3 className="font-medium">{tool.name}</h3>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {tool.description}
+                          </p>
+                        </div>
+                        <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          );
+        })}
       </div>
     </div>
   );

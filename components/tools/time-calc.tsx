@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CopyRow, StatBox } from "@/components/tools/shared";
+import { CopyRow, StatBox, usePersistedState } from "@/components/tools/shared";
 import {
   nowUnix,
   unixToDate,
@@ -47,8 +47,8 @@ const TIMEZONES = [
 ];
 
 function UnixTab() {
-  const [ts, setTs] = useState("");
-  const [datetime, setDatetime] = useState("");
+  const [ts, setTs] = usePersistedState("avixia:time:unix", "");
+  const [datetime, setDatetime] = usePersistedState("avixia:time:datetime", "");
 
   const tsNum = Number(ts);
   const parsed = Number.isFinite(tsNum) && ts !== "" ? formatUnix(tsNum) : null;
@@ -201,8 +201,12 @@ function TimezoneTab() {
           />
         </div>
         <div className="grid gap-1.5">
-          <Label>From</Label>
-          <Select value={from} onValueChange={(v) => v && setFrom(v)}>
+          <Label htmlFor="tz-from">From</Label>
+          <Select
+            id="tz-from"
+            value={from}
+            onValueChange={(v) => v && setFrom(v)}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -216,8 +220,8 @@ function TimezoneTab() {
           </Select>
         </div>
         <div className="grid gap-1.5">
-          <Label>To</Label>
-          <Select value={to} onValueChange={(v) => v && setTo(v)}>
+          <Label htmlFor="tz-to">To</Label>
+          <Select id="tz-to" value={to} onValueChange={(v) => v && setTo(v)}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>

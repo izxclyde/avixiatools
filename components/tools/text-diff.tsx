@@ -1,14 +1,13 @@
 "use client";
 
-import { useState } from "react";
 import { diffLines } from "diff";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { StatBox } from "@/components/tools/shared";
+import { StatBox, usePersistedState } from "@/components/tools/shared";
 
 export default function TextDiff() {
-  const [left, setLeft] = useState("");
-  const [right, setRight] = useState("");
+  const [left, setLeft] = usePersistedState("avixia:diff:left", "");
+  const [right, setRight] = usePersistedState("avixia:diff:right", "");
 
   const parts = diffLines(left, right);
 
@@ -56,14 +55,20 @@ export default function TextDiff() {
           {parts.map((part, i) => {
             if (part.added) {
               return (
-                <span key={i} className="block bg-emerald-500/15 text-emerald-300">
+                <span
+                  key={i}
+                  className="block bg-emerald-500/15 text-emerald-600 dark:text-emerald-300"
+                >
                   + {part.value}
                 </span>
               );
             }
             if (part.removed) {
               return (
-                <span key={i} className="block bg-red-500/15 text-red-300">
+                <span
+                  key={i}
+                  className="block bg-red-500/15 text-red-600 dark:text-red-300"
+                >
                   - {part.value}
                 </span>
               );

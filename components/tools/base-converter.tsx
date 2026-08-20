@@ -10,13 +10,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CopyRow } from "@/components/tools/shared";
+import { CopyRow, usePersistedState } from "@/components/tools/shared";
 import { convertBase, isValidNumber } from "@/lib/logic/numbers";
 
 const BASES = [2, 8, 10, 16];
 
 export default function BaseConverter() {
-  const [value, setValue] = useState("255");
+  const [value, setValue] = usePersistedState("avixia:base:value", "255");
   const [fromBase, setFromBase] = useState(10);
 
   const valid = isValidNumber(value, fromBase);
