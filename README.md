@@ -18,6 +18,17 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
+## Environment
+
+The **Report an issue** page (`/report`) creates GitHub issues via the API. Set a token in `.env.local` to enable it:
+
+```bash
+# Fine-grained PAT with "Issues: write" on izxclyde/avixiatools (or a classic token with `repo` scope)
+GITHUB_TOKEN=your_token_here
+```
+
+Without the token, the page renders but submissions return a "not configured" message.
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More
