@@ -30,7 +30,7 @@ export default function ColourConverter() {
             key={c}
             type="button"
             onClick={() => setInput(c)}
-            className="h-8 w-8 rounded-md border transition-transform hover:scale-110"
+            className="h-11 w-11 rounded-md border transition-transform hover:scale-110 sm:h-8 sm:w-8"
             style={{ backgroundColor: c }}
             aria-label={`Use ${c}`}
           />

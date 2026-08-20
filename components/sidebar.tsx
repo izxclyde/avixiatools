@@ -41,7 +41,7 @@ function NavLinks({ query }: { query: string }) {
                     <Link
                       href={href}
                       className={cn(
-                        "block rounded-md px-3 py-1.5 text-sm transition-colors",
+                        "block rounded-md px-3 py-2.5 text-sm transition-colors sm:py-1.5",
                         active
                           ? "bg-accent text-accent-foreground"
                           : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
