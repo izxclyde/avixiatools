@@ -25,8 +25,9 @@
 - Base Converter, Unit Converter, Time Calculator, Encoding Tools — moved from Calculators
 - Text Diff — moved from Typography & Text
 
-**Other (1 tool built & verified):**
+**Other (2 tools built & verified):**
 - QR Generator ✅ — styled QR codes with custom colors, shapes, and logos (via `qr-code-styling`, `jszip`); Single, WiFi, vCard, and Batch tabs; presets, PNG/SVG export, copy, and info caption (adapted from MIT-licensed delphitools, attributed in `ACKNOWLEDGEMENTS.md`)
+- Background Remover ✅ — automatic in-browser background removal via `@huggingface/transformers` + `briaai/RMBG-1.4` (WebGPU with WASM fallback); drop/paste/select input, download progress for the one-time ~180MB model fetch, side-by-side preview with checkerboard transparency, PNG export (adapted from MIT-licensed delphitools, attributed in `ACKNOWLEDGEMENTS.md`)
 
 **Pages:**
 - Report an issue ✅ — `/report` creates GitHub issues automatically via the API (server-side `app/api/report` route, needs `GITHUB_TOKEN`); honeypot spam guard; footer + site credit link to hcnatividad.com
@@ -58,7 +59,7 @@
 - Image Tracer — trace raster images to SVG vectors
 - Paste Image — paste and download an image from clipboard
 - Artwork Enhancer — add colour noise overlay to artwork
-- Background Remover — remove backgrounds from images automatically (ML-based)
+- ~~Background Remover~~ ✅ — done, shipped under Other (see above)
 - Substrata — arrange and mark up images in the browser (image editor)
 
 **Wave 5 — Social + Misc + Calculators + Other (14 tools):**
@@ -97,7 +98,7 @@
 - `npm run build` — passes (Next.js 16 Turbopack)
 - `npm run lint` — passes
 - `npm test` — 36/36 logic tests pass
-- All 9 Developer/Other tools render interactively at `http://localhost:3000`
+- All 10 Developer/Other tools render interactively at `http://localhost:3000`
 
 ---
 *This file is the single source of truth for project state. If context is lost, resume from here.*
