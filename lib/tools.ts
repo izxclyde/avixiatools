@@ -166,6 +166,12 @@ export const TOOLS: Tool[] = [
     category: "other",
     description: "Generate styled QR codes with custom colors, shapes, and logos",
   },
+  {
+    slug: "background-remover",
+    name: "Background Remover",
+    category: "other",
+    description: "Remove backgrounds from images automatically",
+  },
 ];
 
 export const ACTIVE_TOOLS = TOOLS.filter((t) => t.enabled !== false);
