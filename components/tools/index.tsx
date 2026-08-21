@@ -9,6 +9,7 @@ import SqlConverter from "@/components/tools/sql-converter";
 import SqlToCode from "@/components/tools/sql-to-code";
 import SqlFormatter from "@/components/tools/sql-formatter";
 import QrGenerator from "@/components/tools/qr-generator";
+import BarcodeGenerator from "@/components/tools/barcode-generator";
 import BackgroundRemover from "@/components/tools/background-remover";
 
 export const toolComponents: Record<string, React.ComponentType> = {
@@ -23,5 +24,6 @@ export const toolComponents: Record<string, React.ComponentType> = {
   "sql-to-code": SqlToCode,
   "sql-formatter": SqlFormatter,
   "qr-generator": QrGenerator,
+  "barcode-generator": BarcodeGenerator,
   "background-remover": BackgroundRemover,
 };

@@ -167,6 +167,12 @@ export const TOOLS: Tool[] = [
     description: "Generate styled QR codes with custom colors, shapes, and logos",
   },
   {
+    slug: "barcode-generator",
+    name: "Barcode Generator",
+    category: "other",
+    description: "Generate Data Matrix, Aztec, PDF417, Code 128, EAN-13, and more",
+  },
+  {
     slug: "background-remover",
     name: "Background Remover",
     category: "other",
