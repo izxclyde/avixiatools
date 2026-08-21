@@ -42,3 +42,4 @@ next-env.d.ts
 
 # graphify knowledge graph (generated)
 /graphify-out/
+.github/PR_DESCRIPTION.md
