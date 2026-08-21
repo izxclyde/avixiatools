@@ -25,8 +25,9 @@
 - Base Converter, Unit Converter, Time Calculator, Encoding Tools — moved from Calculators
 - Text Diff — moved from Typography & Text
 
-**Other (2 tools built & verified):**
+**Other (3 tools built & verified):**
 - QR Generator ✅ — styled QR codes with custom colors, shapes, and logos (via `qr-code-styling`, `jszip`); Single, WiFi, vCard, and Batch tabs; presets, PNG/SVG export, copy, and info caption (adapted from MIT-licensed delphitools, attributed in `ACKNOWLEDGEMENTS.md`)
+- Barcode Generator ✅ — Micro QR, Data Matrix, Aztec, PDF417, Code 128, Code 39, EAN-13, and UPC-A via `bwip-js`; Single and Batch tabs; charset filtering with auto-uppercase (Code 39), EAN-13/UPC-A mod-10 check-digit validation; size/padding sliders, colours + transparency, "Show numbers" toggle for 1D codes; PNG/SVG export, copy, batch ZIP (adapted from MIT-licensed delphitools, attributed in `ACKNOWLEDGEMENTS.md`)
 - Background Remover ✅ — automatic in-browser background removal via `@huggingface/transformers` + `briaai/RMBG-1.4` (WebGPU with WASM fallback); drop/paste/select input, download progress for the one-time ~180MB model fetch, side-by-side preview with checkerboard transparency, PNG export (adapted from MIT-licensed delphitools, attributed in `ACKNOWLEDGEMENTS.md`)
 
 **Pages:**
@@ -69,7 +70,7 @@
 - Watermarker — add watermarks to images
 - Harmony Generator — generate colour harmonies
 - Palette Collection — browse curated colour palettes
-- Barcode Generator — generate Data Matrix, Aztec, PDF417, Code 128, EAN-13, and more
+- ~~Barcode Generator~~ ✅ — done, shipped under Other (see above)
 - Meta Tag Generator — generate HTML meta tags
 - Regex Tester — test regular expressions
 - Tailwind Cheat Sheet — quick reference for Tailwind classes
@@ -90,15 +91,15 @@
 4. Reference the MIT-licensed delphitools source for logic accuracy, with attribution in `ACKNOWLEDGEMENTS.md`
 
 **Dependencies already installed:**
-- `culori` (colour math), `lucide-react` (icons), `diff` (text diff), `sql-formatter` (SQL formatting)
+- `culori` (colour math), `lucide-react` (icons), `diff` (text diff), `sql-formatter` (SQL formatting), `bwip-js` (barcode rendering), `qr-code-styling` (QR codes), `jszip` (batch ZIP downloads)
 - `@types/culori` (TypeScript types for culori)
 - shadcn/ui components: card, input, label, select, textarea, tabs, sheet, scroll-area, separator, badge, tooltip, switch, etc.
 
 **Current verification:**
 - `npm run build` — passes (Next.js 16 Turbopack)
 - `npm run lint` — passes
-- `npm test` — 36/36 logic tests pass
-- All 10 Developer/Other tools render interactively at `http://localhost:3000`
+- `npm test` — 41/41 logic tests pass
+- All 11 Developer/Other tools render interactively at `http://localhost:3000`
 
 ---
 *This file is the single source of truth for project state. If context is lost, resume from here.*

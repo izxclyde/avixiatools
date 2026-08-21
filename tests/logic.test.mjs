@@ -12,6 +12,7 @@ import { convertSqlConcat, parseHelpers } from "../lib/logic/sql.ts";
 import { sqlToCode } from "../lib/logic/sql-to-code.ts";
 import { formatSql, detectDialect } from "../lib/logic/sql-format.ts";
 import { generateWiFiString, generateVCardString } from "../lib/logic/qr.ts";
+import { mod10CheckDigit, validateContent, filterContent, buildBwipOptions, friendlyBwipError } from "../lib/logic/barcode.ts";
 
 const sqlOpts = {
   keywordCase: "upper",
@@ -413,4 +414,51 @@ test("qr: vcard builds a 3.0 block with filled fields only", () => {
   assert.doesNotMatch(vcard, /TITLE:/);
   assert.doesNotMatch(vcard, /TEL:/);
   assert.match(vcard, /END:VCARD$/);
+});
+
+test("barcode: mod-10 check digits for EAN-13 and UPC-A", () => {
+  // "4006381333931" is a standard valid EAN-13; check digit is 1
+  assert.equal(mod10CheckDigit("400638133393", 1, 3), 1);
+  // "036000291452" is a standard valid UPC-A; check digit is 2
+  assert.equal(mod10CheckDigit("03600029145", 3, 1), 2);
+});
+
+test("barcode: validation accepts valid codes and rejects bad check digits", () => {
+  assert.equal(validateContent("", "ean13"), null);
+  assert.equal(validateContent("400638133393", "ean13"), null); // data portion only
+  assert.equal(validateContent("4006381333931", "ean13"), null); // correct check digit
+  assert.match(validateContent("4006381333932", "ean13"), /Check digit should be 1/);
+  assert.match(validateContent("40063", "ean13"), /exactly 12 or 13 digits/);
+  assert.equal(validateContent("036000291452", "upca"), null);
+  assert.match(validateContent("036000291459", "upca"), /Check digit should be 2/);
+  assert.match(validateContent("1234", "upca"), /exactly 11 or 12 digits/);
+});
+
+test("barcode: content filtering and code 39 charset", () => {
+  assert.equal(filterContent("abc-123", "code39"), "ABC-123"); // auto-uppercase
+  assert.equal(filterContent("a!b@c", "code39"), "ABC"); // strips unsupported
+  assert.match(validateContent("BAD~CHAR", "code39"), /Code 39 only supports/);
+  assert.equal(validateContent("ABC-123", "code39"), null);
+  assert.equal(filterContent("12a34b", "ean13"), "1234"); // digits only
+});
+
+test("barcode: bwip options per symbology", () => {
+  const opts = { padding: 2, foregroundColor: "#000000", backgroundColor: "#ffffff", transparentBg: false, showText: true };
+  const c128 = buildBwipOptions("code128", "ABC", 300, opts);
+  assert.equal(c128.bcid, "code128");
+  assert.equal(c128.includetext, true); // 1D shows text by default
+  assert.equal(c128.backgroundcolor, "ffffff");
+  const dm = buildBwipOptions("datamatrix", "X", 300, opts);
+  assert.equal(dm.bcid, "datamatrix");
+  assert.equal(dm.includetext, false); // 2D never shows text
+  const transparent = buildBwipOptions("datamatrix", "X", 300, { ...opts, transparentBg: true });
+  assert.equal("backgroundcolor" in transparent, false); // omitted = alpha-0 bg
+  const noText = buildBwipOptions("code128", "ABC", 300, { ...opts, showText: false });
+  assert.equal(noText.includetext, false);
+});
+
+test("barcode: friendly error strips bwip namespaces", () => {
+  assert.equal(friendlyBwipError(new Error("bwipp.ean13#1234: bad data")), "bad data");
+  assert.equal(friendlyBwipError(new Error("bwip-js: unknown bcid")), "unknown bcid");
+  assert.equal(friendlyBwipError("nope"), "Failed to generate barcode");
 });
