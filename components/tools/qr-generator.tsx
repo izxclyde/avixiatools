@@ -49,6 +49,7 @@ import {
   type VCardData,
   type WiFiFormData,
 } from "@/lib/logic/qr";
+import { shareOrDownload } from "@/lib/download";
 
 // Tailwind class for the checkerboard shown behind a transparent QR preview.
 const CHECKERBOARD_CLASS =
@@ -571,21 +572,19 @@ export default function QrGenerator() {
     const qr = qrCodeInstance.current;
     if (!qr) return;
 
-    const filename = `qr-code-${Date.now()}`;
+    const filename = `qr-code-${Date.now()}.${format}`;
 
     if (!includeInfo) {
-      qr.download({ name: filename, extension: format });
+      const raw = await qr.getRawData(format);
+      if (!(raw instanceof Blob)) return;
+      await shareOrDownload(raw, filename);
       return;
     }
 
     const blob =
       format === "png" ? await composeInfoPng() : await composeInfoSvg();
     if (!blob) return;
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `${filename}.${format}`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    await shareOrDownload(blob, filename);
   };
 
   // Copy to clipboard
@@ -744,11 +743,7 @@ export default function QrGenerator() {
     // Download ZIP
     const zipBlob = await zip.generateAsync({ type: "blob" });
     if (!isMountedRef.current) return;
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(zipBlob);
-    link.download = `qr-codes-batch-${Date.now()}.zip`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    await shareOrDownload(zipBlob, `qr-codes-batch-${Date.now()}.zip`);
 
     setBatchGenerating(false);
   };

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFilePaste } from "@/hooks/use-file-paste";
+import { shareOrDownload } from "@/lib/download";
 
 // Adapted port of delphitools' background-remover (MIT) — see ACKNOWLEDGEMENTS.md.
 // Runs briaai/RMBG-1.4 via @huggingface/transformers; WebGPU with WASM fallback.
@@ -31,6 +32,7 @@ export default function BackgroundRemover() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pipelineRef = useRef<any>(null);
+  const resultBlobRef = useRef<Blob | null>(null);
   const mountedRef = useRef(true);
 
   // Dispose ML pipeline on unmount to free model memory
@@ -173,7 +175,8 @@ export default function BackgroundRemover() {
         try {
           const finalImage = await applyMaskToImage(sourceImage, maskDataUrl);
           if (!mountedRef.current) return;
-          setResultImage(finalImage);
+          resultBlobRef.current = finalImage.blob;
+          setResultImage(finalImage.url);
           setProcessing({ status: "done" });
         } finally {
           if (isBlobUrl) {
@@ -197,7 +200,7 @@ export default function BackgroundRemover() {
   const applyMaskToImage = async (
     imageUrl: string,
     maskUrl: string
-  ): Promise<string> => {
+  ): Promise<{ url: string; blob: Blob }> => {
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
 
@@ -224,7 +227,12 @@ export default function BackgroundRemover() {
     }
 
     ctx.putImageData(imageData, 0, 0);
-    return canvas.toDataURL("image/png");
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/png")
+    );
+    if (!blob) throw new Error("Failed to encode PNG");
+    return { url: canvas.toDataURL("image/png"), blob };
   };
 
   const loadImage = (src: string): Promise<HTMLImageElement> => {
@@ -238,16 +246,14 @@ export default function BackgroundRemover() {
   };
 
   const downloadResult = () => {
-    if (!resultImage) return;
-    const link = document.createElement("a");
-    link.download = "background-removed.png";
-    link.href = resultImage;
-    link.click();
+    if (!resultBlobRef.current) return;
+    shareOrDownload(resultBlobRef.current, "background-removed.png");
   };
 
   const clearImage = () => {
     setSourceImage(null);
     setResultImage(null);
+    resultBlobRef.current = null;
     setProcessing({ status: "idle" });
   };
 
