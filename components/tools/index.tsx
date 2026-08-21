@@ -9,6 +9,7 @@ import SqlConverter from "@/components/tools/sql-converter";
 import SqlToCode from "@/components/tools/sql-to-code";
 import SqlFormatter from "@/components/tools/sql-formatter";
 import QrGenerator from "@/components/tools/qr-generator";
+import BackgroundRemover from "@/components/tools/background-remover";
 
 export const toolComponents: Record<string, React.ComponentType> = {
   "text-diff": TextDiff,
@@ -22,4 +23,5 @@ export const toolComponents: Record<string, React.ComponentType> = {
   "sql-to-code": SqlToCode,
   "sql-formatter": SqlFormatter,
   "qr-generator": QrGenerator,
+  "background-remover": BackgroundRemover,
 };
