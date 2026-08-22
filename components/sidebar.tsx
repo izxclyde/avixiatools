@@ -93,7 +93,8 @@ function SidebarBody({
       <SidebarHeader />
       <Separator />
       <SidebarSearch value={query} onChange={setQuery} />
-      <ScrollArea className="flex-1">
+      {/* min-h-0 lets flex actually constrain the area so long tool lists scroll */}
+      <ScrollArea className="min-h-0 flex-1">
         <div className="p-3">
           <NavLinks query={query} />
         </div>
