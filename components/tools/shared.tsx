@@ -107,10 +107,18 @@ export function CopyRow({
 }
 
 export function StatBox({ label, value }: { label: string; value: string }) {
+  const long = value.length > 12;
   return (
-    <div className="rounded-md border bg-card p-3">
+    <div className="min-w-0 rounded-md border bg-card p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-0.5 text-2xl font-semibold tabular-nums">{value}</div>
+      <div
+        title={value}
+        className={`mt-0.5 font-semibold tabular-nums ${
+          long ? "break-all text-sm" : "text-2xl"
+        }`}
+      >
+        {value}
+      </div>
     </div>
   );
 }
