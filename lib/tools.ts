@@ -1,4 +1,13 @@
-import { Calculator, Code2, Palette, QrCode, Type, type LucideIcon } from "lucide-react";
+import {
+  Calculator,
+  Code2,
+  FileText,
+  Image,
+  Palette,
+  QrCode,
+  Type,
+  type LucideIcon,
+} from "lucide-react";
 
 export type ToolCategory = {
   id: string;
@@ -10,6 +19,8 @@ export const CATEGORY_ICONS: Record<string, LucideIcon> = {
   typography: Type,
   calculators: Calculator,
   developer: Code2,
+  pdf: FileText,
+  images: Image,
   other: QrCode,
 };
 
@@ -26,6 +37,8 @@ export const CATEGORIES: ToolCategory[] = [
   { id: "typography", name: "Typography & Text" },
   { id: "calculators", name: "Calculators" },
   { id: "developer", name: "Developer" },
+  { id: "pdf", name: "PDF" },
+  { id: "images", name: "Images" },
   { id: "other", name: "Other" },
 ];
 
@@ -177,6 +190,54 @@ export const TOOLS: Tool[] = [
     name: "Background Remover",
     category: "other",
     description: "Remove backgrounds from images automatically",
+  },
+  {
+    slug: "merge-pdf",
+    name: "Merge PDF",
+    category: "pdf",
+    description: "Combine multiple PDFs into one file",
+  },
+  {
+    slug: "split-pdf",
+    name: "Split PDF",
+    category: "pdf",
+    description: "Split a PDF by custom ranges or every N pages",
+  },
+  {
+    slug: "organize-pdf",
+    name: "Organize PDF",
+    category: "pdf",
+    description: "Reorder, rotate and remove pages",
+  },
+  {
+    slug: "extract-pdf-pages",
+    name: "Extract PDF Pages",
+    category: "pdf",
+    description: "Pull selected pages into a new PDF",
+  },
+  {
+    slug: "compress-pdf",
+    name: "Compress PDF",
+    category: "pdf",
+    description: "Reduce PDF file size without uploading anything",
+  },
+  {
+    slug: "watermark-pdf",
+    name: "Watermark PDF",
+    category: "pdf",
+    description: "Stamp text across every page",
+  },
+  {
+    slug: "page-numbers",
+    name: "Add Page Numbers",
+    category: "pdf",
+    description: "Number the pages of a PDF",
+  },
+  {
+    slug: "jpg-to-pdf",
+    name: "JPG to PDF",
+    category: "images",
+    description: "Build a PDF from images",
   },
 ];
 

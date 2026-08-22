@@ -13,6 +13,7 @@ import { sqlToCode } from "../lib/logic/sql-to-code.ts";
 import { formatSql, detectDialect } from "../lib/logic/sql-format.ts";
 import { generateWiFiString, generateVCardString } from "../lib/logic/qr.ts";
 import { mod10CheckDigit, validateContent, filterContent, buildBwipOptions, friendlyBwipError } from "../lib/logic/barcode.ts";
+import { parsePageRanges, parseRangeSegment, chunkPages, formatPageLabel, outputName, formatBytes, sanitizeWinAnsi } from "../lib/logic/pdf.ts";
 
 const sqlOpts = {
   keywordCase: "upper",
@@ -461,4 +462,58 @@ test("barcode: friendly error strips bwip namespaces", () => {
   assert.equal(friendlyBwipError(new Error("bwipp.ean13#1234: bad data")), "bad data");
   assert.equal(friendlyBwipError(new Error("bwip-js: unknown bcid")), "unknown bcid");
   assert.equal(friendlyBwipError("nope"), "Failed to generate barcode");
+});
+
+// --- PDF tools ---
+
+test("pdf: range segment parsing clamps and rejects", () => {
+  assert.deepEqual(parseRangeSegment("3", 10), [3]);
+  assert.deepEqual(parseRangeSegment("2-5", 10), [2, 3, 4, 5]);
+  assert.deepEqual(parseRangeSegment("9-20", 10), [9, 10]); // clamped
+  assert.equal(parseRangeSegment("0", 10), null); // pages are 1-based
+  assert.equal(parseRangeSegment("5-2", 10), null); // reversed span
+  assert.equal(parseRangeSegment("abc", 10), null);
+  assert.equal(parseRangeSegment("", 10), null);
+  assert.equal(parseRangeSegment("1-3", 0), null); // empty document
+});
+
+test("pdf: multi-range parsing sorts, dedupes and validates", () => {
+  assert.deepEqual(parsePageRanges("5,1-3,3", 10), [1, 2, 3, 5]); // dedupe + sort
+  assert.deepEqual(parsePageRanges(" 1 - 2 , 7 ", 10), [1, 2, 7]); // whitespace
+  assert.equal(parsePageRanges("1,x", 10), null);
+  assert.equal(parsePageRanges("", 10), null);
+  assert.equal(parsePageRanges(",", 10), null);
+});
+
+test("pdf: chunking splits consecutive groups", () => {
+  const all = (n) => Array.from({ length: n }, (_, i) => i + 1);
+  assert.deepEqual(chunkPages(all(12), 4), [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]]);
+  assert.deepEqual(chunkPages(all(5), 2), [[1, 2], [3, 4], [5]]); // uneven tail
+  assert.deepEqual(chunkPages([], 3), []);
+  assert.deepEqual(chunkPages([1, 2], 0), [[1], [2]]); // degenerate size clamps to 1
+});
+
+test("pdf: page label templates", () => {
+  assert.equal(formatPageLabel("{n} / {total}", 3, 10), "3 / 10");
+  assert.equal(formatPageLabel("Page {n} of {total}", 2, 5), "Page 2 of 5");
+  assert.equal(formatPageLabel("- {n} -", 7, 99), "- 7 -"); // no placeholders needed
+});
+
+test("pdf: output naming and byte formatting", () => {
+  assert.equal(outputName("scan.pdf", "-compressed"), "scan-compressed.pdf");
+  assert.equal(outputName("SCAN.PDF", "-merged"), "SCAN-merged.pdf");
+  assert.equal(outputName("noext", "-x"), "noext-x.pdf");
+  assert.equal(formatBytes(512), "512 B");
+  assert.equal(formatBytes(2048), "2.0 KB");
+  assert.equal(formatBytes(5 * 1024 * 1024), "5.00 MB");
+  assert.equal(formatBytes(-1), "—");
+});
+
+test("pdf: winansi sanitising keeps latin, replaces the rest", () => {
+  assert.equal(sanitizeWinAnsi("CONFIDENTIAL"), "CONFIDENTIAL");
+  // é and ï are latin-1; em dash has a WinAnsi slot — both kept
+  assert.equal(sanitizeWinAnsi("café — naïve"), "café — naïve");
+  // arrows have no WinAnsi representation
+  assert.equal(sanitizeWinAnsi("a → b"), "a ? b");
+  assert.equal(sanitizeWinAnsi("日本語"), "???");
 });

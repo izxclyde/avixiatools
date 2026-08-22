@@ -33,6 +33,30 @@
 **Pages:**
 - Report an issue ✅ — `/report` creates GitHub issues automatically via the API (server-side `app/api/report` route, needs `GITHUB_TOKEN`); honeypot spam guard; footer + site credit link to hcnatividad.com
 
+**Wave 6 — PDF & Images (8 tools built & verified, all processing client-side):**
+
+| Tool | Slug | Notes |
+|---|---|---|
+| Merge PDF ✅ | `merge-pdf` | Multi-file, reorderable list (pdf-lib `copyPages`) |
+| Split PDF ✅ | `split-pdf` | Custom ranges or every-N-pages; multi-output zipped via jszip |
+| Organize PDF ✅ | `organize-pdf` | Drag-reorder + rotate + delete thumbnails; rotations baked in on save |
+| Extract PDF Pages ✅ | `extract-pdf-pages` | Click-select thumbnails → new PDF |
+| Compress PDF ✅ | `compress-pdf` | pdf.js render → JPEG re-encode at 3 quality presets → pdf-lib rebuild; before/after sizes. Output is rasterised (text not selectable) |
+| Watermark PDF ✅ | `watermark-pdf` | Text stamp: size/opacity/rotation/colour/5 positions |
+| Add Page Numbers ✅ | `page-numbers` | `{n}`/`{total}` template, 6 positions, start-at, skip-first toggle |
+| JPG to PDF ✅ | `jpg-to-pdf` | JPG/PNG/WebP → PDF; A4/Letter/fit-to-image, margins, auto-orientation |
+
+Shared infrastructure:
+- `lib/pdf.ts` — lazy pdf.js loader (worker wired via `import.meta.url`, Turbopack-emitted asset), friendly errors for encrypted/invalid files, page rendering, image re-encoding, `pdfBlob()` helper
+- `lib/logic/pdf.ts` — pure/tested: range parsing (`parsePageRanges`, `parseRangeSegment`), chunking, page-label templates, WinAnsi sanitising for standard-font text
+- `components/tools/page-grid.tsx` — shared thumbnail grid (select mode / organize mode with HTML5 drag-reorder); IntersectionObserver lazy thumbnails
+- `hooks/use-pdf-file.ts` — shared open/clear lifecycle for single-PDF tools
+- New categories: **PDF** (7 tools) and **Images** (1 tool) registered in `lib/tools.ts`
+
+Known limits: password-protected inputs are rejected with a clear message (no decryption); compress rasterises pages.
+
+**Future wave — remaining PDF/image tools (14):** PDF to JPG, PDF/Image to Excel, PDF/Image to Word, Markdown/TXT/HTML/CSV/EPUB to PDF (needs `docx`, `xlsx`, a markdown→PDF path), Sign, Redact, Crop, OCR/make-searchable (`tesseract.js`), Protect/Unlock (needs an encryption-capable lib — pdf-lib can't encrypt), Flatten, Convert Image, Optimize Image.
+
 **Unfinished Waves:**
 
 **Wave 2 — Typography & Text remaining (5 tools):**
@@ -91,15 +115,15 @@
 4. Reference the MIT-licensed delphitools source for logic accuracy, with attribution in `ACKNOWLEDGEMENTS.md`
 
 **Dependencies already installed:**
-- `culori` (colour math), `lucide-react` (icons), `diff` (text diff), `sql-formatter` (SQL formatting), `bwip-js` (barcode rendering), `qr-code-styling` (QR codes), `jszip` (batch ZIP downloads)
+- `culori` (colour math), `lucide-react` (icons), `diff` (text diff), `sql-formatter` (SQL formatting), `bwip-js` (barcode rendering), `qr-code-styling` (QR codes), `jszip` (batch ZIP downloads), `pdf-lib` (PDF writing/manipulation), `pdfjs-dist` (PDF rendering/thumbnails)
 - `@types/culori` (TypeScript types for culori)
-- shadcn/ui components: card, input, label, select, textarea, tabs, sheet, scroll-area, separator, badge, tooltip, switch, etc.
+- shadcn/ui components: card, input, label, select, textarea, tabs, sheet, scroll-area, separator, badge, tooltip, switch, slider, checkbox, etc.
 
 **Current verification:**
-- `npm run build` — passes (Next.js 16 Turbopack)
-- `npm run lint` — passes
-- `npm test` — 41/41 logic tests pass
-- All 11 Developer/Other tools render interactively at `http://localhost:3000`
+- `npm run build` — passes (Next.js 16 Turbopack); all 21 tool routes prerender
+- `npm run lint` — passes (0 errors; pre-existing `<img>` warnings in qr-generator/page-grid thumbnails are intentional for blob/data-URL images)
+- `npm test` — 47/47 logic tests pass
+- All 21 active tools render interactively at `http://localhost:3000`
 
 ---
 *This file is the single source of truth for project state. If context is lost, resume from here.*
