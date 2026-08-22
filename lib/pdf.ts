@@ -41,12 +41,48 @@ export async function openPdfFile(file: File): Promise<PDFDocumentProxy> {
   return openPdf(await file.arrayBuffer());
 }
 
-type PdfLibModule = typeof import("pdf-lib");
+/** Open a possibly-encrypted PDF with a known password (unlock tool). */
+export async function openEncryptedPdf(
+  data: ArrayBuffer,
+  password: string
+): Promise<PDFDocumentProxy> {
+  const { getDocument } = await getPdfjs();
+  try {
+    return await getDocument({ data: new Uint8Array(data), password }).promise;
+  } catch (error) {
+    const name = (error as { name?: string }).name ?? "";
+    if (name === "PasswordException") {
+      throw new Error("Wrong or missing password.");
+    }
+    throw error;
+  }
+}
+
+type PdfMakeModule = (typeof import("pdfmake/build/pdfmake"))["default"];
+
+let pdfMakePromise: Promise<PdfMakeModule> | null = null;
+
+// pdfmake needs its font bundle registered before creating documents.
+export async function getPdfMake(): Promise<PdfMakeModule> {
+  if (!pdfMakePromise) {
+    pdfMakePromise = (async () => {
+      const pdfMake = (await import("pdfmake/build/pdfmake")).default;
+      const vfs = (await import("pdfmake/build/vfs_fonts")).default;
+      pdfMake.addVirtualFileSystem(vfs);
+      return pdfMake;
+    })();
+  }
+  return pdfMakePromise;
+}
+
+type PdfLibModule = typeof import("@cantoo/pdf-lib");
 
 let pdfLibPromise: Promise<PdfLibModule> | null = null;
 
+// @cantoo/pdf-lib is a drop-in fork of pdf-lib that adds AES encryption
+// support (protect/unlock) while keeping the same public API.
 export async function getPdfLib(): Promise<PdfLibModule> {
-  if (!pdfLibPromise) pdfLibPromise = import("pdf-lib");
+  if (!pdfLibPromise) pdfLibPromise = import("@cantoo/pdf-lib");
   return pdfLibPromise;
 }
 
@@ -100,6 +136,44 @@ export function canvasToBlob(canvas: HTMLCanvasElement, type = "image/jpeg", qua
       quality
     );
   });
+}
+
+/**
+ * Extract a page's text as visual lines: items grouped by baseline Y
+ * (±2pt tolerance), ordered top-to-bottom, joined left-to-right.
+ * Used by the Word/Excel converters — layout beyond line order is lost.
+ */
+export async function extractPageLines(
+  pdf: PDFDocumentProxy,
+  pageNum: number
+): Promise<string[]> {
+  const page = await pdf.getPage(pageNum);
+  const content = await page.getTextContent();
+  const lines: { y: number; parts: { x: number; str: string }[] }[] = [];
+
+  for (const item of content.items) {
+    if (!("str" in item) || !item.str?.trim()) continue;
+    const transform = item.transform ?? [1, 0, 0, 1, 0, 0];
+    const y = Math.round(transform[5] * 2) / 2; // half-point buckets
+    let line = lines.find((l) => Math.abs(l.y - y) < 2);
+    if (!line) {
+      line = { y, parts: [] };
+      lines.push(line);
+    }
+    line.parts.push({ x: transform[4], str: item.str });
+  }
+
+  return lines
+    .sort((a, b) => b.y - a.y)
+    .map((line) =>
+      line.parts
+        .sort((a, b) => a.x - b.x)
+        .map((p) => p.str)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim()
+    )
+    .filter(Boolean);
 }
 
 /**
