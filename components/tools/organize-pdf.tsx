@@ -1,12 +1,13 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { AlertCircle, Loader2, RotateCcw, RotateCw, Trash2, Upload } from "lucide-react";
+import { AlertCircle, Loader2, RotateCw, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageGrid, type PageItem } from "@/components/tools/page-grid";
 import { usePdfFile } from "@/hooks/use-pdf-file";
-import { shareOrDownload } from "@/lib/download";
+import { downloadBlob } from "@/lib/download";
 import { getPdfLib, loadPdfDoc, pdfBlob } from "@/lib/pdf";
+import { ShareButton } from "@/components/tools/share-button";
 
 export default function OrganizePdf() {
   const { state, error: openError, opening, open, clear } = usePdfFile();
@@ -14,6 +15,7 @@ export default function OrganizePdf() {
   const [edits, setEdits] = useState<PageItem[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -41,10 +43,10 @@ export default function OrganizePdf() {
         out.addPage(page);
       });
       const bytes = await out.save();
-      await shareOrDownload(
-        pdfBlob(bytes),
-        state.file.name.replace(/\.pdf$/i, "-organized.pdf")
-      );
+      const blob = pdfBlob(bytes);
+      const name = state.file.name.replace(/\.pdf$/i, "-organized.pdf");
+      downloadBlob(blob, name);
+      setResult({ blob, name });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Organising failed.");
     } finally {
@@ -107,6 +109,15 @@ export default function OrganizePdf() {
                 )}
               </Button>
             </div>
+            {result && (
+              <div className="flex items-center justify-between gap-3 border-t px-4 py-3">
+                <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                  Downloaded:{" "}
+                  <span className="font-medium text-foreground">{result.name}</span>
+                </p>
+                <ShareButton blob={result.blob} filename={result.name} />
+              </div>
+            )}
           </>
         ) : (
           <div

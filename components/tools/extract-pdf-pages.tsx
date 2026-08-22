@@ -5,14 +5,16 @@ import { AlertCircle, Loader2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageGrid } from "@/components/tools/page-grid";
 import { usePdfFile } from "@/hooks/use-pdf-file";
-import { shareOrDownload } from "@/lib/download";
+import { downloadBlob } from "@/lib/download";
 import { getPdfLib, loadPdfDoc, pdfBlob } from "@/lib/pdf";
+import { ShareButton } from "@/components/tools/share-button";
 
 export default function ExtractPdfPages() {
   const { state, error: openError, opening, open, clear } = usePdfFile();
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -36,10 +38,10 @@ export default function ExtractPdfPages() {
       const pages = await out.copyPages(src, indices);
       pages.forEach((page) => out.addPage(page));
       const bytes = await out.save();
-      await shareOrDownload(
-        pdfBlob(bytes),
-        state.file.name.replace(/\.pdf$/i, "-extracted.pdf")
-      );
+      const blob = pdfBlob(bytes);
+      const name = state.file.name.replace(/\.pdf$/i, "-extracted.pdf");
+      downloadBlob(blob, name);
+      setResult({ blob, name });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Extraction failed.");
     } finally {
@@ -130,6 +132,15 @@ export default function ExtractPdfPages() {
                 )}
               </Button>
             </div>
+            {result && (
+              <div className="flex items-center justify-between gap-3 border-t px-4 py-3">
+                <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                  Downloaded:{" "}
+                  <span className="font-medium text-foreground">{result.name}</span>
+                </p>
+                <ShareButton blob={result.blob} filename={result.name} />
+              </div>
+            )}
           </>
         ) : (
           showFilePicker

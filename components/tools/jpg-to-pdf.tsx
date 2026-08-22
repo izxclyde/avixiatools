@@ -11,8 +11,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { shareOrDownload } from "@/lib/download";
-import { createPdfDoc, getPdfLib, imageFileToEmbeddable, pdfBlob } from "@/lib/pdf";
+import { downloadBlob } from "@/lib/download";
+import { createPdfDoc, imageFileToEmbeddable, pdfBlob } from "@/lib/pdf";
+import { ShareButton } from "@/components/tools/share-button";
 
 type PageSize = "fit" | "a4" | "letter";
 
@@ -29,6 +30,7 @@ export default function JpgToPdf() {
   const [margin, setMargin] = useState("small");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const addInputRef = useRef<HTMLInputElement>(null);
@@ -85,7 +87,9 @@ export default function JpgToPdf() {
       }
 
       const bytes = await doc.save();
-      await shareOrDownload(pdfBlob(bytes), "images.pdf");
+      const blob = pdfBlob(bytes);
+      downloadBlob(blob, "images.pdf");
+      setResult({ blob, name: "images.pdf" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Building the PDF failed.");
     } finally {
@@ -251,6 +255,22 @@ export default function JpgToPdf() {
               ? `${images.length} image${images.length > 1 ? "s" : ""}`
               : "No images yet"}
           </div>
+          {result && (
+            <>
+              <div className="flex min-w-0 flex-1 items-center justify-end px-4 text-sm text-muted-foreground">
+                <span className="truncate">
+                  Downloaded{" "}
+                  <span className="font-medium text-foreground">{result.name}</span>
+                </span>
+              </div>
+              <ShareButton
+                blob={result.blob}
+                filename={result.name}
+                variant="ghost"
+                className="h-auto self-stretch rounded-none border-l px-4"
+              />
+            </>
+          )}
           <Button
             size="lg"
             onClick={build}

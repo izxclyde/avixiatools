@@ -188,7 +188,7 @@ export const TOOLS: Tool[] = [
   {
     slug: "background-remover",
     name: "Background Remover",
-    category: "other",
+    category: "images",
     description: "Remove backgrounds from images automatically",
   },
   {

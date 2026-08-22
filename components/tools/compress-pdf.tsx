@@ -12,8 +12,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { usePdfFile } from "@/hooks/use-pdf-file";
-import { shareOrDownload } from "@/lib/download";
+import { downloadBlob } from "@/lib/download";
 import { canvasToBlob, createPdfDoc, pdfBlob, renderPageToCanvas } from "@/lib/pdf";
+import { ShareButton } from "@/components/tools/share-button";
 import { formatBytes } from "@/lib/logic/pdf";
 
 // ponytail: whole-page JPEG re-encode — text becomes an image (same tradeoff
@@ -34,6 +35,7 @@ export default function CompressPdf() {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ before: number; after: number } | null>(null);
+  const [compressed, setCompressed] = useState<{ blob: Blob; name: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -66,11 +68,11 @@ export default function CompressPdf() {
       }
 
       const bytes = await out.save();
+      const blob = pdfBlob(bytes);
+      const name = state.file.name.replace(/\.pdf$/i, "-compressed.pdf");
       setResult({ before: state.file.size, after: bytes.length });
-      await shareOrDownload(
-        pdfBlob(bytes),
-        state.file.name.replace(/\.pdf$/i, "-compressed.pdf")
-      );
+      setCompressed({ blob, name });
+      downloadBlob(blob, name);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Compression failed.");
     } finally {
@@ -151,16 +153,23 @@ export default function CompressPdf() {
                   </>
                 )}
               </p>
-              <Button onClick={compress} disabled={busy} className="font-semibold">
-                {busy ? (
-                  <>
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                    Working…
-                  </>
-                ) : (
-                  "Compress & download"
-                )}
-              </Button>
+              <div className="flex items-center gap-2">
+                <ShareButton
+                  blob={compressed?.blob}
+                  filename={compressed?.name ?? "compressed.pdf"}
+                  className="font-semibold"
+                />
+                <Button onClick={compress} disabled={busy} className="font-semibold">
+                  {busy ? (
+                    <>
+                      <Loader2 className="mr-2 size-4 animate-spin" />
+                      Working…
+                    </>
+                  ) : (
+                    "Compress & download"
+                  )}
+                </Button>
+              </div>
             </div>
           </>
         ) : (

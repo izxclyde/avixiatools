@@ -32,6 +32,17 @@
 
 **Pages:**
 - Report an issue ✅ — `/report` creates GitHub issues automatically via the API (server-side `app/api/report` route, needs `GITHUB_TOKEN`); honeypot spam guard; footer + site credit link to hcnatividad.com
+- About ✅ — `/about`: what the site is, privacy stance (local processing + the two exceptions), credits, feedback link; linked from footer
+- Footer — slimmed to brand line + About / Report / credit links
+
+**UI fixes:**
+- Sidebar scroll — `ScrollArea` now gets `min-h-0 flex-1`; without it the list overflowed the fixed-height aside instead of scrolling, so tools past the first screenful were unreachable without searching
+- Background Remover moved from Other → Images category
+
+**Download behaviour (site-wide):**
+- All file-producing tools (8 PDF/image tools + Background Remover, QR Generator, Barcode Generator) now save **directly to disk** via anchor download (`downloadBlob` in `lib/download.ts`) — no more system share/copy sheet on mobile.
+- A secondary **Share** button (`components/tools/share-button.tsx`) appears next to results only on devices that support Web Share with files (iOS/Android); it opens the native share sheet and falls back to a plain download if sharing fails. Desktop browsers never see it.
+- Result blobs are retained in state after processing so Share works after the automatic download.
 
 **Wave 6 — PDF & Images (8 tools built & verified, all processing client-side):**
 
