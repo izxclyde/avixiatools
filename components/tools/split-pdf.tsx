@@ -8,8 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { chunkPages, parseRangeSegment } from "@/lib/logic/pdf";
 import { usePdfFile } from "@/hooks/use-pdf-file";
-import { shareOrDownload } from "@/lib/download";
+import { downloadBlob } from "@/lib/download";
 import { getPdfLib, loadPdfDoc, pdfBlob } from "@/lib/pdf";
+import { ShareButton } from "@/components/tools/share-button";
 
 export default function SplitPdf() {
   const { state, error: openError, opening, open, clear } = usePdfFile();
@@ -18,7 +19,7 @@ export default function SplitPdf() {
   const [everyN, setEveryN] = useState(2);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [resultName, setResultName] = useState<string | null>(null);
+  const [result, setResult] = useState<{ blob: Blob; filename: string; label: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -57,7 +58,7 @@ export default function SplitPdf() {
   const split = async () => {
     if (!state || !validGroups || busy) return;
     setError(null);
-    setResultName(null);
+    setResult(null);
     setBusy(true);
     try {
       const src = await loadPdfDoc(await state.file.arrayBuffer());
@@ -75,20 +76,22 @@ export default function SplitPdf() {
         files.push(new File([pdfBlob(bytes)], `${base}-part${i + 1}.pdf`));
       }
 
-      let name: string;
       if (files.length === 1) {
-        await shareOrDownload(files[0], files[0].name);
-        name = files[0].name;
+        downloadBlob(files[0], files[0].name);
+        setResult({ blob: files[0], filename: files[0].name, label: files[0].name });
       } else {
         const { default: JSZip } = await import("jszip");
         const zip = new JSZip();
         files.forEach((f) => zip.file(f.name, f));
         const blob = await zip.generateAsync({ type: "blob" });
         const zipName = `${base}-split.zip`;
-        await shareOrDownload(blob, zipName);
-        name = `${files.length} PDFs in ${zipName}`;
+        downloadBlob(blob, zipName);
+        setResult({
+          blob,
+          filename: zipName,
+          label: `${files.length} PDFs in ${zipName}`,
+        });
       }
-      setResultName(name);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Splitting failed.");
     } finally {
@@ -177,11 +180,14 @@ export default function SplitPdf() {
               </Button>
             </div>
 
-            {resultName && (
-              <p className="border-t px-4 py-3 text-sm text-muted-foreground">
-                Downloaded:{" "}
-                <span className="font-medium text-foreground">{resultName}</span>
-              </p>
+            {result && (
+              <div className="flex items-center justify-between gap-3 border-t px-4 py-3">
+                <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                  Downloaded:{" "}
+                  <span className="font-medium text-foreground">{result.label}</span>
+                </p>
+                <ShareButton blob={result.blob} filename={result.filename} />
+              </div>
             )}
           </>
         ) : (

@@ -15,7 +15,8 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { sanitizeWinAnsi } from "@/lib/logic/pdf";
 import { getPdfLib, loadPdfDoc, pdfBlob } from "@/lib/pdf";
-import { shareOrDownload } from "@/lib/download";
+import { ShareButton } from "@/components/tools/share-button";
+import { downloadBlob } from "@/lib/download";
 
 type Position = "center" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
@@ -29,6 +30,7 @@ export default function WatermarkPdf() {
   const [position, setPosition] = useState<Position>("center");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -112,7 +114,10 @@ export default function WatermarkPdf() {
       }
 
       const bytes = await doc.save();
-      await shareOrDownload(pdfBlob(bytes), file.name.replace(/\.pdf$/i, "-watermarked.pdf"));
+      const blob = pdfBlob(bytes);
+      const name = file.name.replace(/\.pdf$/i, "-watermarked.pdf");
+      downloadBlob(blob, name);
+      setResult({ blob, name });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Watermarking failed.");
     } finally {
@@ -258,6 +263,15 @@ export default function WatermarkPdf() {
                 "Apply watermark & download"
               )}
             </Button>
+            {result && (
+              <div className="flex items-center justify-between gap-3 px-4 py-3">
+                <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                  Downloaded:{" "}
+                  <span className="font-medium text-foreground">{result.name}</span>
+                </p>
+                <ShareButton blob={result.blob} filename={result.name} />
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -3,8 +3,9 @@
 import { useCallback, useRef, useState } from "react";
 import { AlertCircle, ArrowDown, ArrowUp, FileText, Loader2, Plus, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { shareOrDownload } from "@/lib/download";
+import { downloadBlob } from "@/lib/download";
 import { createPdfDoc, loadPdfDoc, pdfBlob } from "@/lib/pdf";
+import { ShareButton } from "@/components/tools/share-button";
 
 export default function MergePdf() {
   const [files, setFiles] = useState<File[]>([]);
@@ -36,10 +37,13 @@ export default function MergePdf() {
     });
   };
 
+  const [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
+
   const merge = async () => {
     if (files.length < 2 || busy) return;
     setBusy(true);
     setError(null);
+    setResult(null);
     try {
       const out = await createPdfDoc();
       for (const file of files) {
@@ -48,7 +52,10 @@ export default function MergePdf() {
         pages.forEach((page) => out.addPage(page));
       }
       const bytes = await out.save();
-      await shareOrDownload(pdfBlob(bytes), "merged.pdf");
+      const blob = pdfBlob(bytes);
+      const name = "merged.pdf";
+      downloadBlob(blob, name);
+      setResult({ blob, name });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Merging failed.");
     } finally {
@@ -178,6 +185,16 @@ export default function MergePdf() {
             )}
           </Button>
         </div>
+
+        {result && (
+          <div className="flex items-center justify-between gap-3 border-t px-4 py-3">
+            <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+              Downloaded:{" "}
+              <span className="font-medium text-foreground">{result.name}</span>
+            </p>
+            <ShareButton blob={result.blob} filename={result.name} />
+          </div>
+        )}
       </div>
 
       {error && (

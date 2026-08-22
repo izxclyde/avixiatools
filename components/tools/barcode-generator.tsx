@@ -46,7 +46,8 @@ import {
   type BarcodeOptions,
   type BarcodeType,
 } from "@/lib/logic/barcode";
-import { shareOrDownload } from "@/lib/download";
+import { downloadBlob } from "@/lib/download";
+import { ShareButton } from "@/components/tools/share-button";
 
 // Tailwind class for the checkerboard shown behind a transparent preview.
 const CHECKERBOARD_CLASS =
@@ -80,6 +81,7 @@ export default function BarcodeGenerator() {
   const [copied, setCopied] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shareTarget, setShareTarget] = useState<{ blob: Blob; filename: string } | null>(null);
 
   // Batch state
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
@@ -180,23 +182,21 @@ export default function BarcodeGenerator() {
     const validationError = validateContent(content, codeType);
     if (validationError) return;
 
+    let blob: Blob | null = null;
     if (format === "svg") {
       const bwipjs = await import("bwip-js/browser");
       const svg = bwipjs.toSVG(
         buildBwipOptions(codeType, content, size, options)
       );
-      await shareOrDownload(
-        new Blob([svg], { type: "image/svg+xml" }),
-        `${typeSlug(codeType)}-${Date.now()}.svg`
-      );
-      return;
+      blob = new Blob([svg], { type: "image/svg+xml" });
+    } else {
+      const canvas = await renderCanvas(content);
+      blob = canvas ? await canvasToBlob(canvas) : null;
     }
-
-    const canvas = await renderCanvas(content);
-    if (!canvas) return;
-    const blob = await canvasToBlob(canvas);
     if (!blob) return;
-    await shareOrDownload(blob, `${typeSlug(codeType)}-${Date.now()}.png`);
+    const filename = `${typeSlug(codeType)}-${Date.now()}.${format}`;
+    downloadBlob(blob, filename);
+    setShareTarget({ blob, filename });
   };
 
   // Copy to clipboard
@@ -324,10 +324,9 @@ export default function BarcodeGenerator() {
     // Download ZIP
     const zipBlob = await zip.generateAsync({ type: "blob" });
     if (!isMountedRef.current) return;
-    await shareOrDownload(
-      zipBlob,
-      `${typeSlug(codeType)}-batch-${Date.now()}.zip`
-    );
+    const zipName = `${typeSlug(codeType)}-batch-${Date.now()}.zip`;
+    downloadBlob(zipBlob, zipName);
+    setShareTarget({ blob: zipBlob, filename: zipName });
 
     if (isMountedRef.current) setBatchGenerating(false);
   };
@@ -487,6 +486,17 @@ export default function BarcodeGenerator() {
                       )}
                     </Button>
                   </div>
+                  {shareTarget && (
+                    <div className="flex justify-end">
+                      <ShareButton
+                        blob={shareTarget.blob}
+                        filename={shareTarget.filename}
+                        variant="outline"
+                        size="lg"
+                        className="h-12 px-6"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Options */}
@@ -731,6 +741,14 @@ export default function BarcodeGenerator() {
                   )}
                   Generate &amp; Download ZIP
                 </Button>
+                {shareTarget && (
+                  <ShareButton
+                    blob={shareTarget.blob}
+                    filename={shareTarget.filename}
+                    variant="outline"
+                    className="w-full"
+                  />
+                )}
               </div>
             </TabsContent>
           </div>

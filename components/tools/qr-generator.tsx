@@ -49,7 +49,8 @@ import {
   type VCardData,
   type WiFiFormData,
 } from "@/lib/logic/qr";
-import { shareOrDownload } from "@/lib/download";
+import { downloadBlob } from "@/lib/download";
+import { ShareButton } from "@/components/tools/share-button";
 
 // Tailwind class for the checkerboard shown behind a transparent QR preview.
 const CHECKERBOARD_CLASS =
@@ -266,6 +267,7 @@ export default function QrGenerator() {
   // Batch state
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
   const [batchGenerating, setBatchGenerating] = useState(false);
+  const [shareTarget, setShareTarget] = useState<{ blob: Blob; filename: string } | null>(null);
 
   // URL validation state
   const [urlValidation, setUrlValidation] = useState<UrlValidation>({
@@ -574,17 +576,19 @@ export default function QrGenerator() {
 
     const filename = `qr-code-${Date.now()}.${format}`;
 
+    let blob: Blob;
     if (!includeInfo) {
       const raw = await qr.getRawData(format);
       if (!(raw instanceof Blob)) return;
-      await shareOrDownload(raw, filename);
-      return;
+      blob = raw;
+    } else {
+      const composed =
+        format === "png" ? await composeInfoPng() : await composeInfoSvg();
+      if (!composed) return;
+      blob = composed;
     }
-
-    const blob =
-      format === "png" ? await composeInfoPng() : await composeInfoSvg();
-    if (!blob) return;
-    await shareOrDownload(blob, filename);
+    downloadBlob(blob, filename);
+    setShareTarget({ blob, filename });
   };
 
   // Copy to clipboard
@@ -743,7 +747,9 @@ export default function QrGenerator() {
     // Download ZIP
     const zipBlob = await zip.generateAsync({ type: "blob" });
     if (!isMountedRef.current) return;
-    await shareOrDownload(zipBlob, `qr-codes-batch-${Date.now()}.zip`);
+    const zipName = `qr-codes-batch-${Date.now()}.zip`;
+    downloadBlob(zipBlob, zipName);
+    setShareTarget({ blob: zipBlob, filename: zipName });
 
     setBatchGenerating(false);
   };
@@ -1120,6 +1126,14 @@ export default function QrGenerator() {
                   )}
                   Generate &amp; Download ZIP
                 </Button>
+                {shareTarget && (
+                  <ShareButton
+                    blob={shareTarget.blob}
+                    filename={shareTarget.filename}
+                    variant="outline"
+                    className="w-full"
+                  />
+                )}
               </div>
             </TabsContent>
 
@@ -1257,6 +1271,17 @@ export default function QrGenerator() {
                       )}
                     </Button>
                   </div>
+                  {shareTarget && (
+                    <div className="flex justify-end">
+                      <ShareButton
+                        blob={shareTarget.blob}
+                        filename={shareTarget.filename}
+                        variant="outline"
+                        size="lg"
+                        className="h-12 px-6"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Options */}

@@ -11,7 +11,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFilePaste } from "@/hooks/use-file-paste";
-import { shareOrDownload } from "@/lib/download";
+import { downloadBlob } from "@/lib/download";
+import { ShareButton } from "@/components/tools/share-button";
 
 // Adapted port of delphitools' background-remover (MIT) — see ACKNOWLEDGEMENTS.md.
 // Runs briaai/RMBG-1.4 via @huggingface/transformers; WebGPU with WASM fallback.
@@ -32,7 +33,7 @@ export default function BackgroundRemover() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pipelineRef = useRef<any>(null);
-  const resultBlobRef = useRef<Blob | null>(null);
+  const [resultBlob, setResultBlob] = useState<Blob | null>(null);
   const mountedRef = useRef(true);
 
   // Dispose ML pipeline on unmount to free model memory
@@ -175,7 +176,7 @@ export default function BackgroundRemover() {
         try {
           const finalImage = await applyMaskToImage(sourceImage, maskDataUrl);
           if (!mountedRef.current) return;
-          resultBlobRef.current = finalImage.blob;
+          setResultBlob(finalImage.blob);
           setResultImage(finalImage.url);
           setProcessing({ status: "done" });
         } finally {
@@ -246,14 +247,14 @@ export default function BackgroundRemover() {
   };
 
   const downloadResult = () => {
-    if (!resultBlobRef.current) return;
-    shareOrDownload(resultBlobRef.current, "background-removed.png");
+    if (!resultBlob) return;
+    downloadBlob(resultBlob, "background-removed.png");
   };
 
   const clearImage = () => {
     setSourceImage(null);
     setResultImage(null);
-    resultBlobRef.current = null;
+    setResultBlob(null);
     setProcessing({ status: "idle" });
   };
 
@@ -334,6 +335,12 @@ export default function BackgroundRemover() {
                 <Trash2 className="size-4" />
                 Clear
               </Button>
+              <ShareButton
+                blob={resultBlob}
+                filename="background-removed.png"
+                variant="ghost"
+                className="h-auto self-stretch rounded-none border-l px-5"
+              />
               <Button
                 onClick={downloadResult}
                 className="h-auto gap-2 self-stretch rounded-none border-l px-6 font-semibold"
