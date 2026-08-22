@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/sidebar";
 import { Footer } from "@/components/footer";
 import { CommandPalette } from "@/components/command-palette";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({
   variable: "--font-sans",
@@ -58,6 +59,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </div>
         </ThemeProvider>
         <CommandPalette />
+        <Analytics />
       </body>
     </html>
   );
