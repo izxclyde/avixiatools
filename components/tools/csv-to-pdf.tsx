@@ -16,7 +16,7 @@ import { ShareButton } from "@/components/tools/share-button";
 import { ToolNote } from "@/components/tools/tool-note";
 import { downloadBlob } from "@/lib/download";
 import { parseCsv } from "@/lib/logic/csv";
-import { getPdfMake } from "@/lib/pdf";
+import { getPdfMake } from "@/lib/pdfdoc";
 
 export default function CsvToPdf() {
   const [csv, setCsv] = useState("");
@@ -76,13 +76,10 @@ export default function CsvToPdf() {
       };
 
       const pdfMake = await getPdfMake();
-      const blob = await new Promise<Blob>((resolve, reject) => {
-        try {
-          pdfMake.createPdf(doc as unknown as Record<string, unknown>).getBlob(resolve);
-        } catch (err) {
-          reject(err instanceof Error ? err : new Error("PDF creation failed."));
-        }
-      });
+      // pdfmake 0.3's getBlob() returns a Promise; callback style never fires
+      const blob = await pdfMake
+        .createPdf(doc as unknown as Record<string, unknown>)
+        .getBlob();
 
       downloadBlob(blob, "table.pdf");
       setResult({ blob, name: "table.pdf" });

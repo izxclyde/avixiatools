@@ -28,23 +28,24 @@ export default function RedactPdf() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
 
-  const stageRef = useRef<HTMLDivElement>(null); // wraps the preview canvas
+  const stageRef = useRef<HTMLDivElement>(null); // wraps preview + overlays; captures drags
+  const canvasHostRef = useRef<HTMLDivElement>(null); // canvas host — React never touches its children
   const originRef = useRef<{ x: number; y: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Render the current page preview
+  // Render the current page preview into the dedicated host node
   useEffect(() => {
-    const host = stageRef.current;
+    const host = canvasHostRef.current;
     if (!state || !host) return;
     let cancelled = false;
-    [...host.querySelectorAll("canvas")].forEach((c) => c.remove());
+    host.innerHTML = "";
     (async () => {
       try {
         const page = await state.pdf.getPage(pageNum);
         const canvas = await renderPageToCanvas(page, 560);
         if (cancelled) return;
         canvas.className = "block h-auto w-full select-none";
-        host.prepend(canvas);
+        host.appendChild(canvas);
       } catch {
         // non-fatal
       }
@@ -189,6 +190,8 @@ export default function RedactPdf() {
                 onPointerUp={endDrag}
                 className="relative mx-auto max-w-md touch-none overflow-hidden rounded-md border bg-muted p-2"
               >
+                {/* Canvas lives in its own untouched node; overlays are React siblings */}
+                <div ref={canvasHostRef} />
                 {(marks[pageNum] ?? []).map((r, index) => (
                   <span
                     key={`${pageNum}-${index}`}

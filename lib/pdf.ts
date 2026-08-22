@@ -58,23 +58,6 @@ export async function openEncryptedPdf(
   }
 }
 
-type PdfMakeModule = (typeof import("pdfmake/build/pdfmake"))["default"];
-
-let pdfMakePromise: Promise<PdfMakeModule> | null = null;
-
-// pdfmake needs its font bundle registered before creating documents.
-export async function getPdfMake(): Promise<PdfMakeModule> {
-  if (!pdfMakePromise) {
-    pdfMakePromise = (async () => {
-      const pdfMake = (await import("pdfmake/build/pdfmake")).default;
-      const vfs = (await import("pdfmake/build/vfs_fonts")).default;
-      pdfMake.addVirtualFileSystem(vfs);
-      return pdfMake;
-    })();
-  }
-  return pdfMakePromise;
-}
-
 type PdfLibModule = typeof import("@cantoo/pdf-lib");
 
 let pdfLibPromise: Promise<PdfLibModule> | null = null;

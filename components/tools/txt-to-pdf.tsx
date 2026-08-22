@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ShareButton } from "@/components/tools/share-button";
 import { ToolNote } from "@/components/tools/tool-note";
 import { downloadBlob } from "@/lib/download";
-import { getPdfMake } from "@/lib/pdf";
+import { getPdfMake } from "@/lib/pdfdoc";
 
 type Source = { name: string; text: string };
 
@@ -47,13 +47,9 @@ export default function TxtToPdf() {
         .split(/\n{2,}/)
         .map((p) => ({ text: p.trim(), style: "body" }) as Record<string, unknown>);
 
-      const blob = await new Promise<Blob>((resolve, reject) => {
-        try {
-          pdfMake.createPdf({ content: paragraphs, styles }).getBlob(resolve);
-        } catch (err) {
-          reject(err instanceof Error ? err : new Error("PDF creation failed."));
-        }
-      });
+      const blob = await pdfMake
+        .createPdf({ content: paragraphs, styles })
+        .getBlob();
 
       const name = source.name.replace(/\.[^.]+$/i, "") + ".pdf";
       downloadBlob(blob, name);

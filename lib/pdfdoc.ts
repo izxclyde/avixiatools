@@ -7,17 +7,17 @@ import { marked, type Tokens } from "marked";
 export type Content = Record<string, unknown>;
 type Run = { text: string; bold?: boolean; italics?: boolean };
 
-type PdfMakeModule = (typeof import("pdfmake/build/pdfmake"))["default"];
+type PdfMakeModule = (typeof import("pdfmake/build/pdfmake.js"))["default"];
 
 let pdfMakePromise: Promise<PdfMakeModule> | null = null;
 
 // Kept local so this module stays importable by node --test (no path aliases).
 // pdfmake needs its font bundle registered before creating documents.
-async function getPdfMake(): Promise<PdfMakeModule> {
+export async function getPdfMake(): Promise<PdfMakeModule> {
   if (!pdfMakePromise) {
     pdfMakePromise = (async () => {
-      const pdfMake = (await import("pdfmake/build/pdfmake")).default;
-      const vfs = (await import("pdfmake/build/vfs_fonts")).default;
+      const pdfMake = (await import("pdfmake/build/pdfmake.js")).default;
+      const vfs = (await import("pdfmake/build/vfs_fonts.js")).default;
       pdfMake.addVirtualFileSystem(vfs);
       return pdfMake;
     })();
@@ -271,24 +271,21 @@ export async function contentToBlob(
   title?: string
 ): Promise<Blob> {
   const pdfMake = await getPdfMake();
-  return new Promise<Blob>((resolve, reject) => {
-    try {
-      pdfMake.createPdf(
-        {
-          content,
-          ...(title ? { info: { title } } : {}),
-          styles: DOC_STYLES,
-          defaultStyle: { fontSize: 10.5, lineHeight: 1.45 },
-          pageSize: "A4",
-          pageOrientation: orientation,
-          pageMargins: [52, 56, 52, 56],
-        } as unknown as Record<string, unknown>,
-        PDFDOC_LAYOUTS
-      ).getBlob(resolve);
-    } catch (err) {
-      reject(err instanceof Error ? err : new Error("PDF creation failed."));
-    }
-  });
+  // pdfmake 0.3's getBlob() returns a Promise; callback style never fires
+  return pdfMake
+    .createPdf(
+      {
+        content,
+        ...(title ? { info: { title } } : {}),
+        styles: DOC_STYLES,
+        defaultStyle: { fontSize: 10.5, lineHeight: 1.45 },
+        pageSize: "A4",
+        pageOrientation: orientation,
+        pageMargins: [52, 56, 52, 56],
+      } as unknown as Record<string, unknown>,
+      PDFDOC_LAYOUTS
+    )
+    .getBlob();
 }
 
 const DOC_STYLES: Record<string, Record<string, unknown>> = {
