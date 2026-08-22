@@ -66,7 +66,37 @@ Shared infrastructure:
 
 Known limits: password-protected inputs are rejected with a clear message (no decryption); compress rasterises pages.
 
-**Future wave — remaining PDF/image tools (14):** PDF to JPG, PDF/Image to Excel, PDF/Image to Word, Markdown/TXT/HTML/CSV/EPUB to PDF (needs `docx`, `xlsx`, a markdown→PDF path), Sign, Redact, Crop, OCR/make-searchable (`tesseract.js`), Protect/Unlock (needs an encryption-capable lib — pdf-lib can't encrypt), Flatten, Convert Image, Optimize Image.
+**Wave 7 — PDF suite complete (15 tools built & verified, all client-side):**
+
+| Tool | Slug | Notes |
+|---|---|---|
+| PDF to JPG ✅ | `pdf-to-jpg` | Pages → JPG/PNG at 3 quality levels; multi-page zipped |
+| Text to PDF ✅ | `txt-to-pdf` | Paste or drop text → typeset paragraphs (pdfmake) |
+| CSV to PDF ✅ | `csv-to-pdf` | RFC-4180 parser (tested) → styled table, portrait/landscape |
+| Protect PDF ✅ | `protect-pdf` | AES-256 via @cantoo/pdf-lib; user/owner passwords + permission toggles |
+| Unlock PDF ✅ | `unlock-pdf` | Decrypt with known password, save unprotected |
+| Flatten PDF ✅ | `flatten-pdf` | AcroForm flatten or full rasterise |
+| Markdown to PDF ✅ | `md-to-pdf` | marked lexer → headings/lists/tables/code/quotes (mapper tested) |
+| HTML to PDF ✅ | `html-to-pdf` | Block-level DOM walker (h1–6, p, lists, tables, pre, blockquote) |
+| EPUB to PDF ✅ | `epub-to-pdf` | jszip → container.xml → OPF spine → chapters on new pages |
+| PDF to Word ✅ | `pdf-to-word` | Line-grouped text extraction (tested helper) → .docx via docx |
+| PDF to Excel ✅ | `pdf-to-excel` | Lines → columns split on wide gaps (tested) → per-page sheets via SheetJS |
+| Crop PDF ✅ | `crop-pdf` | % margins with live first-page preview overlay; page ranges |
+| Sign PDF ✅ | `sign-pdf` | Pointer/touch signature pad (auto-trimmed PNG), click-to-place, width slider |
+| Redact PDF ✅ | `redact-pdf` | Drag boxes; affected pages rasterised with boxes burned in, others copied losslessly |
+| OCR PDF ✅ | `ocr-pdf` | tesseract.js v7; searchable-PDF (invisible text layer) or plain-text output; 7 languages |
+
+Shared additions:
+- `@cantoo/pdf-lib` replaces `pdf-lib` everywhere (drop-in fork adding AES encryption)
+- `lib/pdf.ts` — pdfmake loader (vfs registration), encrypted-PDF opener, `extractPageLines()` text extraction
+- `lib/pdfdoc.ts` — shared MD/HTML→pdfmake content mapper (`mdToContent`, `htmlToContent`, `contentToBlob`, custom table layouts); pure parts node-tested
+- `lib/logic/csv.ts` — `parseCsv`, `splitColumns` (tested)
+- `components/tools/tool-note.tsx` — shared in-tool limitations notice; every tool with a tradeoff surfaces it up front
+- Dependencies: `@cantoo/pdf-lib`, `pdfmake`, `marked`, `docx`, `xlsx`, `tesseract.js` — all dynamically imported per tool page
+
+Known limits (surfaced in each tool's note): Word/Excel are text-level conversions; HTML/Markdown cover a tag subset; redaction rasterises affected pages; OCR downloads language models on first use and is machine-read quality; protect permission flags are advisory.
+
+**Future wave — image tools (2):** Convert Image (PNG/JPEG/WebP/etc.), Optimize Image.
 
 **Unfinished Waves:**
 

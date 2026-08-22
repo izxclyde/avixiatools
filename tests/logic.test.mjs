@@ -14,6 +14,8 @@ import { formatSql, detectDialect } from "../lib/logic/sql-format.ts";
 import { generateWiFiString, generateVCardString } from "../lib/logic/qr.ts";
 import { mod10CheckDigit, validateContent, filterContent, buildBwipOptions, friendlyBwipError } from "../lib/logic/barcode.ts";
 import { parsePageRanges, parseRangeSegment, chunkPages, formatPageLabel, outputName, formatBytes, sanitizeWinAnsi } from "../lib/logic/pdf.ts";
+import { parseCsv, splitColumns } from "../lib/logic/csv.ts";
+import { mdToContent } from "../lib/pdfdoc.ts";
 
 const sqlOpts = {
   keywordCase: "upper",
@@ -516,4 +518,50 @@ test("pdf: winansi sanitising keeps latin, replaces the rest", () => {
   // arrows have no WinAnsi representation
   assert.equal(sanitizeWinAnsi("a → b"), "a ? b");
   assert.equal(sanitizeWinAnsi("日本語"), "???");
+});
+
+test("csv: quoted fields, escaped quotes and embedded newlines", () => {
+  assert.deepEqual(parseCsv("a,b,c\n1,2,3"), [["a", "b", "c"], ["1", "2", "3"]]);
+  assert.deepEqual(parseCsv('"has,comma","has ""quote""",x'), [
+    ["has,comma", 'has "quote"', "x"],
+  ]);
+  assert.deepEqual(parseCsv('"multi\nline",b'), [["multi\nline", "b"]]);
+  assert.deepEqual(parseCsv("a,,c"), [["a", "", "c"]]); // empty cell kept
+  assert.deepEqual(parseCsv(""), []); // empty input
+  assert.deepEqual(parseCsv("\r\n"), []); // blank line skipped
+});
+
+test("csv: ragged rows are preserved as-is", () => {
+  assert.deepEqual(parseCsv("a,b\nc"), [["a", "b"], ["c"]]);
+});
+
+test("csv: column splitting on multi-space runs", () => {
+  assert.deepEqual(splitColumns("Name   Qty    Price"), ["Name", "Qty", "Price"]);
+  assert.deepEqual(splitColumns("single space stays"), ["single space stays"]);
+  assert.deepEqual(splitColumns("  trimmed   cells  "), ["trimmed", "cells"]);
+  assert.deepEqual(splitColumns(""), []);
+});
+
+test("pdfdoc: markdown maps headings, lists, tables and inline styles", () => {
+  const blocks = mdToContent("# Title\n\nPara with **bold** and *italics*.\n\n- one\n- two\n\n| A | B |\n|---|---|\n| 1 | 2 |");
+  assert.equal(blocks.length, 4); // heading + paragraph + list + table
+  const [heading, para, list, table] = blocks;
+  assert.equal(heading.fontSize, 22);
+  assert.equal(list.ul.length, 2);
+  assert.equal(table.table.headerRows, 1);
+  // Inline styles: single plain run collapses to a string; styled runs stay an array
+  assert.equal(typeof para.text === "string" || Array.isArray(para.text), true);
+  const runs = mdToContent("**only bold**")[0];
+  assert.equal(runs.text[0].bold, true);
+});
+
+test("pdfdoc: code fences and blockquotes become styled blocks", () => {
+  const blocks = mdToContent("```\ncode line\n```\n\n> quoted");
+  assert.equal(blocks.length, 2);
+  assert.equal(blocks[0].layout, "codeBlock");
+  assert.equal(blocks[1].layout, "quote");
+});
+
+test("pdfdoc: empty markdown yields empty content", () => {
+  assert.deepEqual(mdToContent(""), []);
 });

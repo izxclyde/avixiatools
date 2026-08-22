@@ -239,6 +239,96 @@ export const TOOLS: Tool[] = [
     category: "images",
     description: "Build a PDF from images",
   },
+  {
+    slug: "pdf-to-jpg",
+    name: "PDF to JPG",
+    category: "pdf",
+    description: "Turn pages into JPG or PNG images",
+  },
+  {
+    slug: "txt-to-pdf",
+    name: "Text to PDF",
+    category: "pdf",
+    description: "Turn plain text into a typeset PDF",
+  },
+  {
+    slug: "csv-to-pdf",
+    name: "CSV to PDF",
+    category: "pdf",
+    description: "Turn a spreadsheet export into a PDF table",
+  },
+  {
+    slug: "protect-pdf",
+    name: "Protect PDF",
+    category: "pdf",
+    description: "Add a password to a PDF",
+  },
+  {
+    slug: "unlock-pdf",
+    name: "Unlock PDF",
+    category: "pdf",
+    description: "Remove a known password from a PDF",
+  },
+  {
+    slug: "flatten-pdf",
+    name: "Flatten PDF",
+    category: "pdf",
+    description: "Lock in form fields and markup",
+  },
+  {
+    slug: "md-to-pdf",
+    name: "Markdown to PDF",
+    category: "pdf",
+    description: "Turn Markdown into a typeset PDF",
+  },
+  {
+    slug: "html-to-pdf",
+    name: "HTML to PDF",
+    category: "pdf",
+    description: "Turn an HTML file into a clean PDF",
+  },
+  {
+    slug: "epub-to-pdf",
+    name: "EPUB to PDF",
+    category: "pdf",
+    description: "Turn an ebook into a paginated PDF",
+  },
+  {
+    slug: "pdf-to-word",
+    name: "PDF to Word",
+    category: "pdf",
+    description: "Extract a PDF's text into an editable document",
+  },
+  {
+    slug: "pdf-to-excel",
+    name: "PDF to Excel",
+    category: "pdf",
+    description: "Pull a PDF's text lines into a spreadsheet",
+  },
+  {
+    slug: "crop-pdf",
+    name: "Crop PDF",
+    category: "pdf",
+    description: "Trim page margins with a live preview",
+  },
+  {
+    slug: "sign-pdf",
+    name: "Sign PDF",
+    category: "pdf",
+    description: "Draw and place a signature on a page",
+  },
+  {
+    slug: "redact-pdf",
+    name: "Redact PDF",
+    category: "pdf",
+    description: "Permanently remove sensitive content",
+  },
+  {
+    slug: "ocr-pdf",
+    name: "OCR PDF",
+    category: "pdf",
+    description: "Make scanned PDFs searchable or extract text",
+  },
 ];
 
 export const ACTIVE_TOOLS = TOOLS.filter((t) => t.enabled !== false);
