@@ -161,8 +161,8 @@ function helperValue(expr: string, helpers: Helpers, paramBindings: Record<strin
   const constant = helpers.values.get(trimmed) ?? helpers.values.get(last);
   if (constant !== undefined) return constant;
 
-  // Check function helpers: match FuncName(args...) or FuncName
-  const callMatch = trimmed.match(/^(\w+)\s*\(([^)]*)\)\s*$/) ?? trimmed.match(/^(\w+)\s*$/);
+  // Check function helpers: match [Prefix.]FuncName(args) or [Prefix.]FuncName
+  const callMatch = trimmed.match(/^(?:\w+\.)?(\w+)\s*\(([^)]*)\)\s*$/) ?? trimmed.match(/^(?:\w+\.)?(\w+)\s*$/);
   if (callMatch) {
     const funcName = callMatch[1];
     const helper = helpers.functions.get(funcName);
@@ -197,8 +197,8 @@ function isHelper(expr: string, helpers: Helpers) {
   const trimmed = expr.trim();
   const last = trimmed.split(".").pop() ?? trimmed;
   if (helpers.names.has(trimmed) || helpers.names.has(last)) return true;
-  // Also detect function calls: FuncName(args...)
-  const callMatch = trimmed.match(/^(\w+)\s*\(/);
+  // Also detect function calls: [Prefix.]FuncName(args...)
+  const callMatch = trimmed.match(/^(?:\w+\.)?(\w+)\s*\(/);
   return callMatch ? helpers.functions.has(callMatch[1]) : false;
 }
 
