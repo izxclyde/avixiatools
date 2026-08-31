@@ -1,3 +1,5 @@
+import { vbEval, type HelperRegistry } from "./vb-eval.ts";
+
 export type SqlLanguage = "vb" | "cs" | "auto";
 
 export type SqlParam = { name: string; expr: string };
@@ -9,7 +11,9 @@ export type SqlConvertResult = {
   variants: SqlVariant[];
 };
 
-type Helpers = { names: Set<string>; values: Map<string, string> };
+type FuncParam = { name: string; default?: string };
+type FunctionHelper = { name: string; params: FuncParam[]; bodySource: string };
+type Helpers = { names: Set<string>; values: Map<string, string>; functions: Map<string, FunctionHelper> };
 type Item = { raw: string; start: number; end: number; literal: boolean };
 
 const IDENTIFIER = /[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*/;
@@ -17,6 +21,7 @@ const IDENTIFIER = /[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*/;
 export function parseHelpers(input: string): Helpers {
   const names = new Set<string>();
   const values = new Map<string, string>();
+  const functions = new Map<string, FunctionHelper>();
   const valuePattern = /(?:Property|Const|Dim)\s+(\w+)(?:\s+As\s+\w+)?\s*=\s*("(?:[^"]|"")*"|-?\d+(?:\.\d+)?)/gi;
   const csharpValuePattern = /(?:static\s+)?(?:readonly\s+)?(?:string|int|long|decimal|double)\s+(\w+)\s*=\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?)/gi;
 
@@ -34,8 +39,38 @@ export function parseHelpers(input: string): Helpers {
     values.set(name, value.startsWith('"') ? value.slice(1, -1).replace(/\\"/g, '"') : value);
   }
 
-  for (const match of input.matchAll(/[A-Za-z_]\w*/g)) names.add(match[0]);
-  return { names, values };
+  // Parse VB function helpers: Public [Shared] Function Name(params) As Type ... Return expr ... End Function
+  const funcPattern = /(?:Public|Friend|Private)\s+(?:Shared\s+)?(?:ReadOnly\s+)?Function\s+(\w+)\s*\(([^)]*)\)\s+As\s+\w+[\s\S]*?Return\s+([\s\S]*?)End\s+Function/gi;
+  for (const match of input.matchAll(funcPattern)) {
+    const name = match[1];
+    const rawParams = match[2].trim();
+    const bodySource = match[3].trim();
+    if (!name || !bodySource) continue;
+    const params: FuncParam[] = [];
+    if (rawParams) {
+      for (const p of rawParams.split(",")) {
+        const trimmed = p.trim();
+        const optionalMatch = trimmed.match(/^Optional\s+(\w+)(?:\s+As\s+\w+)?\s*=\s*(.*)$/i);
+        if (optionalMatch) {
+          const def = optionalMatch[2].trim();
+          params.push({ name: optionalMatch[1], default: def.startsWith('"') ? def.slice(1, -1).replace(/""/g, '"') : def });
+        } else {
+          const nameMatch = trimmed.match(/^(\w+)/);
+          if (nameMatch) params.push({ name: nameMatch[1] });
+        }
+      }
+    }
+    names.add(name);
+    functions.set(name, { name, params, bodySource });
+  }
+
+  // ponytail: only add bare identifiers that are actually registered helpers
+  // (constants or functions). The old catch-all scan polluted `names` with
+  // every token in the helpers text (keywords, class names, etc.).
+  for (const match of input.matchAll(/(?:Property|Const|Dim|Function)\s+(\w+)/gi)) {
+    names.add(match[1]);
+  }
+  return { names, values, functions };
 }
 
 function detectLanguage(input: string): Exclude<SqlLanguage, "auto"> {
@@ -118,16 +153,53 @@ function parameterName(expr: string, used: Map<string, string>, params: SqlParam
   return name;
 }
 
-function helperValue(expr: string, helpers: Helpers) {
+function helperValue(expr: string, helpers: Helpers, paramBindings: Record<string, string> = {}) {
   const trimmed = expr.trim();
   const last = trimmed.split(".").pop() ?? trimmed;
-  return helpers.values.get(trimmed) ?? helpers.values.get(last);
+
+  // Check constant helpers first
+  const constant = helpers.values.get(trimmed) ?? helpers.values.get(last);
+  if (constant !== undefined) return constant;
+
+  // Check function helpers: match FuncName(args...) or FuncName
+  const callMatch = trimmed.match(/^(\w+)\s*\(([^)]*)\)\s*$/) ?? trimmed.match(/^(\w+)\s*$/);
+  if (callMatch) {
+    const funcName = callMatch[1];
+    const helper = helpers.functions.get(funcName);
+    if (!helper) return undefined;
+    // Parse call args
+    const rawArgs = callMatch[2] ?? "";
+    const callArgs: string[] = rawArgs.trim() ? rawArgs.split(",").map(a => a.trim()) : [];
+    // Build bindings: call args mapped to declared param names, with defaults
+    const bindings: Record<string, string> = { ...paramBindings };
+    helper.params.forEach((param, i) => {
+      if (i < callArgs.length && callArgs[i] !== "") {
+        // Try to resolve the call arg against known param bindings
+        bindings[param.name] = paramBindings[callArgs[i]] ?? callArgs[i];
+      } else if (param.default !== undefined) {
+        bindings[param.name] = param.default;
+      }
+    });
+    // Evaluate via vbEval
+    const registry: HelperRegistry = {
+      resolve: (name) => {
+        const h = helpers.functions.get(name);
+        return h ? { params: h.params, bodySource: h.bodySource } : undefined;
+      },
+    };
+    return vbEval(helper.bodySource, bindings, registry);
+  }
+
+  return undefined;
 }
 
 function isHelper(expr: string, helpers: Helpers) {
   const trimmed = expr.trim();
   const last = trimmed.split(".").pop() ?? trimmed;
-  return helpers.names.has(trimmed) || helpers.names.has(last);
+  if (helpers.names.has(trimmed) || helpers.names.has(last)) return true;
+  // Also detect function calls: FuncName(args...)
+  const callMatch = trimmed.match(/^(\w+)\s*\(/);
+  return callMatch ? helpers.functions.has(callMatch[1]) : false;
 }
 
 function transformInterpolated(raw: string, language: "vb" | "cs", helpers: Helpers, params: SqlParam[], used: Map<string, string>) {
@@ -262,7 +334,10 @@ export function convertSqlConcat(input: string, requested: SqlLanguage = "auto",
       if (parameterized.has(i)) {
         rendered.push(parameterized.get(i)!);
       } else {
-        rendered.push(helperValue(expr, helpers) ?? expr);
+        // Build param bindings for function helper resolution
+        const paramBindings: Record<string, string> = {};
+        for (const p of params) paramBindings[p.expr] = p.name;
+        rendered.push(helperValue(expr, helpers, paramBindings) ?? expr);
       }
     }
     const rebuiltExpression = [...replacements].sort((a, b) => b.start - a.start).reduce((value, replacement) => value.slice(0, replacement.start) + replacement.text + value.slice(replacement.end), match.expression);
