@@ -285,6 +285,38 @@ Q = Q & " WHERE X = '" & _code & "' " & ConCat() & " AND Y = " & TrimStr(_name) 
   assert.ok(sql.includes("LTRIM(RTRIM"));
 });
 
+test("sql: qualified parameterless helper (DB.NoLock) resolves", () => {
+  const helpers = `Public Shared Function NoLock() As String
+    Return If(clsDB.isSQLDB(), " WITH(NOLOCK) ", "")
+End Function`;
+  const result = convertSqlConcat(`Q = Q & " SELECT CANCEL_FLAG FROM TMS_DO_HDR " & DB.NoLock & " "
+Q = Q & " WHERE "
+Q = Q & " CANCEL_FLAG = '" & _cancelType & "' "
+Q = Q & " AND AMEND_NO = 251"
+If _fltrBy = "B" Then
+    Q = Q & " AND BARCODE='" & _DONo & "'"
+ElseIf _fltrBy = "M" Then
+    Q = Q & " AND (MANUAL_DONO='" & _DONo & "' OR DOC_NO='" & _DONo & "')"
+End If`, "vb", helpers);
+  assert.ok(result);
+  const sql = result.variants[0].sql;
+  assert.ok(sql.includes("WITH(NOLOCK)"));
+  assert.ok(!sql.includes("DB.NoLock"));
+  assert.equal(result.variants.map(v => v.label).filter(l => l.includes("fltrBy")).length, 2);
+});
+
+test("sql: qualified parameterized helper (DB.CastVarChar(...)) resolves", () => {
+  const helpers = `Public Shared Function CastVarChar(Column As String) As String
+    Return If(clsDB.isSQLDB(), "CAST(" & Column & " AS VARCHAR) ", "TO_CHAR(" & Column & ")")
+End Function`;
+  const result = convertSqlConcat(`Q = Q & "SELECT " & DB.CastVarChar(TP_CODE) & " FROM T"`, "vb", helpers);
+  assert.ok(result);
+  const sql = result.variants[0].sql;
+  assert.ok(sql.includes("CAST"));
+  assert.ok(sql.includes("VARCHAR"));
+  assert.ok(!sql.includes("DB.CastVarChar"));
+});
+
 test("sql-format: keyword case, indentation, and operator placement", () => {
   assert.equal(
     formatSql("select a, b from t where x = 1 and y = 2", "sql", sqlOpts),
