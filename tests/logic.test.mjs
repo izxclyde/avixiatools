@@ -206,6 +206,85 @@ test("sql: helper parsing preserves helper expressions and values", () => {
   assert.equal(result.variants[0].sql, "SELECT * FROM T WITH (NOLOCK)");
 });
 
+test("sql: function helpers (ConCat, NoLock, IsNull) resolve to values", () => {
+  const helpers = `Public Shared Function ConCat() As String
+    Return If(clsDB.isSQLDB(), "+", "||")
+End Function
+Public Shared Function NoLock() As String
+    Return If(clsDB.isSQLDB(), " WITH(NOLOCK) ", "")
+End Function
+Public Shared Function IsNull() As String
+    Return If(clsDB.isSQLDB(), "ISNULL", "NVL")
+End Function`;
+  const result = convertSqlConcat(`Q = Q & "SELECT A FROM T " & NoLock()
+Q = Q & " WHERE B = 1 " & ConCat() & " C = IsNull() "`, "vb", helpers);
+  assert.ok(result);
+  assert.match(result.variants[0].sql, /WITH\(NOLOCK\)/);
+  assert.ok(result.variants[0].sql.includes("+"));
+  assert.ok(!result.variants[0].sql.includes("ConCat()"));
+  assert.ok(result.variants[0].sql.includes("IsNull()"));
+});
+
+test("sql: parameterized function helpers (TrimStr, Cast*) resolve with args", () => {
+  const helpers = `Public Shared Function TrimStr(field As String) As String
+    Return If(clsDB.isSQLDB(), "LTRIM(RTRIM(" & field & "))", "TRIM(" & field & ")")
+End Function
+Public Shared Function CastVarChar(Column As String) As String
+    Return If(clsDB.isSQLDB(), "CAST(" & Column & " AS VARCHAR) ", "TO_CHAR(" & Column & ")")
+End Function`;
+  const result = convertSqlConcat(`Q = Q & "SELECT " & CastVarChar(TP_CODE) & " FROM T "
+Q = Q & " WHERE X = '" & _code & "' "
+Q = Q & " AND Y = TrimStr(_name) "`, "vb", helpers);
+  assert.ok(result);
+  assert.ok(result.variants[0].sql.includes("CAST"));
+  assert.ok(result.variants[0].sql.includes("VARCHAR"));
+});
+
+test("sql: nested helper calls and default args resolve (CastDecimal)", () => {
+  const helpers = `Public Shared Function CastDecimal(Column As String, Optional Precision As String = "2") As String
+    Return If(clsDB.isSQLDB(), "CAST(" & Column & " AS DECIMAL(15," & Precision & ")) ", "TO_NUMBER(TRIM(" & Column & ")," & ("'999999999.").PadRight(CInt(Precision), "9") & "')")
+End Function`;
+  const result = convertSqlConcat(`Q = Q & "SELECT " & CastDecimal(TP_AMT) & " FROM T"`, "vb", helpers);
+  assert.ok(result);
+  assert.ok(result.variants[0].sql.includes("DECIMAL(15,2)"));
+});
+
+test("sql: control-flow helper (GetDate with IsSQLDB) resolves to SQL branch", () => {
+  const helpers = `Public Shared Function GetDate() As String
+    If clsDB.isSQLDB() Then
+        Return "CONVERT(DATETIME2, GETDATE())"
+    Else
+        Return "SYSDATE"
+    End If
+End Function`;
+  const result = convertSqlConcat(`Q = Q & "SELECT * FROM T WHERE TS = " & GetDate()`, "vb", helpers);
+  assert.ok(result);
+  assert.ok(result.variants[0].sql.includes("CONVERT(DATETIME2, GETDATE())"));
+});
+
+test("sql: full clsDB helper block resolves SQL-output helpers", () => {
+  const helpers = `Public Shared Function INITCAP() As String
+    Return If(clsDB.isSQLDB(), "dbo.INITCAP", "INITCAP")
+End Function
+Public Shared Function NoLock() As String
+    Return If(clsDB.isSQLDB(), " WITH(NOLOCK) ", "")
+End Function
+Public Shared Function ConCat() As String
+    Return If(clsDB.isSQLDB(), "+", "||")
+End Function
+Public Shared Function TrimStr(field As String) As String
+    Return If(clsDB.isSQLDB(), "LTRIM(RTRIM(" & field & "))", "TRIM(" & field & ")")
+End Function`;
+  const result = convertSqlConcat(`Q = Q & "SELECT " & INITCAP() & "(A) FROM T " & NoLock()
+Q = Q & " WHERE X = '" & _code & "' " & ConCat() & " AND Y = " & TrimStr(_name) `, "vb", helpers);
+  assert.ok(result);
+  const sql = result.variants[0].sql;
+  assert.ok(sql.includes("dbo.INITCAP"));
+  assert.ok(sql.includes("WITH(NOLOCK)"));
+  assert.ok(sql.includes("+"));
+  assert.ok(sql.includes("LTRIM(RTRIM"));
+});
+
 test("sql-format: keyword case, indentation, and operator placement", () => {
   assert.equal(
     formatSql("select a, b from t where x = 1 and y = 2", "sql", sqlOpts),
