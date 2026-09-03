@@ -13,7 +13,7 @@ import { sqlToCode } from "../lib/logic/sql-to-code.ts";
 import { formatSql, detectDialect } from "../lib/logic/sql-format.ts";
 import { generateWiFiString, generateVCardString } from "../lib/logic/qr.ts";
 import { mod10CheckDigit, validateContent, filterContent, buildBwipOptions, friendlyBwipError } from "../lib/logic/barcode.ts";
-import { parsePageRanges, parseRangeSegment, chunkPages, formatPageLabel, outputName, formatBytes, sanitizeWinAnsi } from "../lib/logic/pdf.ts";
+import { parsePageRanges, parseRangeSegment, chunkPages, formatPageLabel, outputName, baseName, formatBytes, sanitizeWinAnsi, checkPdfFile, checkPageCount, MAX_PDF_BYTES, MAX_PDF_PAGES } from "../lib/logic/pdf.ts";
 import { parseCsv, splitColumns } from "../lib/logic/csv.ts";
 import { mdToContent } from "../lib/pdfdoc.ts";
 
@@ -612,7 +612,9 @@ test("pdf: page label templates", () => {
   assert.equal(formatPageLabel("- {n} -", 7, 99), "- 7 -"); // no placeholders needed
 });
 
-test("pdf: output naming and byte formatting", () => {
+test("pdf: output naming keeps working without an extension", () => {
+  assert.equal(baseName("scan.pdf"), "scan");
+  assert.equal(baseName("scan"), "scan");
   assert.equal(outputName("scan.pdf", "-compressed"), "scan-compressed.pdf");
   assert.equal(outputName("SCAN.PDF", "-merged"), "SCAN-merged.pdf");
   assert.equal(outputName("noext", "-x"), "noext-x.pdf");
@@ -620,6 +622,15 @@ test("pdf: output naming and byte formatting", () => {
   assert.equal(formatBytes(2048), "2.0 KB");
   assert.equal(formatBytes(5 * 1024 * 1024), "5.00 MB");
   assert.equal(formatBytes(-1), "—");
+});
+
+test("pdf: size and page-count guards accept normal files, reject huge ones", () => {
+  assert.equal(checkPdfFile({ size: 1024 }), null);
+  assert.equal(checkPdfFile({ size: MAX_PDF_BYTES }), null);
+  assert.match(checkPdfFile({ size: MAX_PDF_BYTES + 1 }), /over the .* limit/);
+  assert.equal(checkPageCount(1), null);
+  assert.equal(checkPageCount(MAX_PDF_PAGES), null);
+  assert.match(checkPageCount(MAX_PDF_PAGES + 1), /over the .* limit/);
 });
 
 test("pdf: winansi sanitising keeps latin, replaces the rest", () => {

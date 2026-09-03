@@ -16,6 +16,7 @@ import { ShareButton } from "@/components/tools/share-button";
 import { ToolNote } from "@/components/tools/tool-note";
 import { downloadBlob } from "@/lib/download";
 import { contentToBlob, mdToContent } from "@/lib/pdfdoc";
+import { MAX_TEXT_CHARS } from "@/lib/logic/pdf";
 
 export default function MdToPdf() {
   const [md, setMd] = useState("");
@@ -46,6 +47,11 @@ export default function MdToPdf() {
     setBusy(true);
     setError(null);
     try {
+      if (md.length > MAX_TEXT_CHARS) {
+        throw new Error(
+          `Text is over the ${MAX_TEXT_CHARS.toLocaleString()} character limit — split it into smaller files first.`
+        );
+      }
       const blob = await contentToBlob(mdToContent(md), orientation);
       downloadBlob(blob, "document.pdf");
       setResult({ blob, name: "document.pdf" });

@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { formatPageLabel, sanitizeWinAnsi } from "@/lib/logic/pdf";
+import { checkPdfFile, formatPageLabel, outputName, sanitizeWinAnsi } from "@/lib/logic/pdf";
 import { getPdfLib, loadPdfDoc, pdfBlob } from "@/lib/pdf";
 import { ShareButton } from "@/components/tools/share-button";
 import { downloadBlob } from "@/lib/download";
@@ -36,6 +36,7 @@ export default function PageNumbers() {
   const [skipFirst, setSkipFirst] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warn, setWarn] = useState<string | null>(null);
   const [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -48,6 +49,11 @@ export default function PageNumbers() {
       setError("Only PDF files are supported.");
       return;
     }
+    const tooBig = checkPdfFile(pdf);
+    if (tooBig) {
+      setError(tooBig);
+      return;
+    }
     setError(null);
     setFile(pdf);
   }, []);
@@ -56,6 +62,11 @@ export default function PageNumbers() {
     if (!file || busy) return;
     setBusy(true);
     setError(null);
+    setWarn(
+      sanitizeWinAnsi(template) !== template
+        ? 'Some characters are not supported and will render as "?".'
+        : null
+    );
     try {
       const doc = await loadPdfDoc(await file.arrayBuffer());
       const { StandardFonts } = await getPdfLib();
@@ -84,7 +95,7 @@ export default function PageNumbers() {
 
       const bytes = await doc.save();
       const blob = pdfBlob(bytes);
-      const name = file.name.replace(/\.pdf$/i, "-numbered.pdf");
+      const name = outputName(file.name, "-numbered");
       downloadBlob(blob, name);
       setResult({ blob, name });
     } catch (err) {
@@ -154,6 +165,7 @@ export default function PageNumbers() {
                 value={template}
                 onChange={(e) => setTemplate(e.target.value)}
               />
+              {warn && <p className="text-xs text-amber-600">{warn}</p>}
             </div>
             <div className="space-y-2">
               <Label>Position</Label>

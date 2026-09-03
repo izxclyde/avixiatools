@@ -14,6 +14,7 @@ import {
 import { ShareButton } from "@/components/tools/share-button";
 import { ToolNote } from "@/components/tools/tool-note";
 import { downloadBlob } from "@/lib/download";
+import { checkPdfFile, outputName } from "@/lib/logic/pdf";
 import { canvasToBlob, loadPdfDoc, openPdfFile, pdfBlob, renderPageToCanvas } from "@/lib/pdf";
 
 type Mode = "forms" | "full";
@@ -26,18 +27,28 @@ export default function FlattenPdf() {
   const [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const cancelRef = useRef(false);
 
   const acceptFile = useCallback((incoming: FileList | File[]) => {
-    const pdf = [...incoming].find(
+    const list = [...incoming];
+    const pdf = list.find(
       (f) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf")
     );
     if (!pdf) {
       setError("Only PDF files are supported.");
       return;
     }
+    const tooBig = checkPdfFile(pdf);
+    if (tooBig) {
+      setError(tooBig);
+      return;
+    }
     setError(null);
     setResult(null);
     setFile(pdf);
+    if (list.length > 1) {
+      setError("Multiple files dropped — only the first is used.");
+    }
   }, []);
 
   const flattenForms = async () => {
@@ -60,6 +71,9 @@ export default function FlattenPdf() {
     const src = await openPdfFile(file);
     const out = await (await import("@cantoo/pdf-lib")).PDFDocument.create();
     for (let i = 1; i <= src.numPages; i++) {
+      if (cancelRef.current) {
+        throw new Error("Cancelled — no file was downloaded.");
+      }
       const page = await src.getPage(i);
       const base = page.getViewport({ scale: 1 });
       const canvas = await renderPageToCanvas(page, Math.min(base.width * 1.5, 3000));
@@ -75,12 +89,13 @@ export default function FlattenPdf() {
   const flatten = async () => {
     if (!file || busy) return;
     setBusy(true);
+    cancelRef.current = false;
     setError(null);
     try {
       const bytes = mode === "forms" ? await flattenForms() : await flattenFull();
       if (!bytes) throw new Error("Flattening failed.");
       const blob = pdfBlob(bytes);
-      const name = file.name.replace(/\.pdf$/i, "-flat.pdf");
+      const name = outputName(file.name, "-flat");
       downloadBlob(blob, name);
       setResult({ blob, name });
     } catch (err) {
@@ -166,6 +181,16 @@ export default function FlattenPdf() {
                 </p>
               )}
               <div className="ml-auto flex items-center gap-2">
+                {busy && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      cancelRef.current = true;
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                )}
                 <ShareButton
                   blob={result?.blob}
                   filename={result?.name ?? ""}

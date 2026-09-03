@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { AlertCircle, Loader2, Trash2, Upload } from "lucide-react";
+import { AlertCircle, Loader2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ShareButton } from "@/components/tools/share-button";
 import { ToolNote } from "@/components/tools/tool-note";
@@ -9,6 +9,7 @@ import { usePdfFile } from "@/hooks/use-pdf-file";
 import { downloadBlob } from "@/lib/download";
 import { extractPageLines } from "@/lib/pdf";
 import { splitColumns } from "@/lib/logic/csv";
+import { baseName } from "@/lib/logic/pdf";
 
 export default function PdfToExcel() {
   const { state, error: openError, opening, open, clear } = usePdfFile();
@@ -18,9 +19,11 @@ export default function PdfToExcel() {
   const [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const cancelRef = useRef(false);
 
   const convert = async () => {
     if (!state || busy) return;
+    cancelRef.current = false;
     setBusy(true);
     setError(null);
     try {
@@ -29,6 +32,10 @@ export default function PdfToExcel() {
       let totalRows = 0;
 
       for (let i = 1; i <= state.pageCount; i++) {
+        if (cancelRef.current) {
+          setError("Cancelled — no file was downloaded.");
+          return;
+        }
         setProgress(`Extracting page ${i} of ${state.pageCount}…`);
         const lines = await extractPageLines(state.pdf, i);
         const rows = lines.map((line) => splitColumns(line));
@@ -51,7 +58,7 @@ export default function PdfToExcel() {
       const blob = new Blob([data], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
-      const name = state.file.name.replace(/\.pdf$/i, ".xlsx");
+      const name = `${baseName(state.file.name)}.xlsx`;
       downloadBlob(blob, name);
       setResult({ blob, name });
     } catch (err) {
@@ -98,6 +105,17 @@ export default function PdfToExcel() {
                   variant="outline"
                   className="font-semibold"
                 />
+                {busy && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      cancelRef.current = true;
+                    }}
+                    className="font-semibold"
+                  >
+                    Cancel
+                  </Button>
+                )}
                 <Button onClick={convert} disabled={busy} className="font-semibold">
                   {busy ? (
                     <>

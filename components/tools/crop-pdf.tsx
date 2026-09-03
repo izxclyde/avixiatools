@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ShareButton } from "@/components/tools/share-button";
+import { ToolNote } from "@/components/tools/tool-note";
 import { usePdfFile } from "@/hooks/use-pdf-file";
 import { downloadBlob } from "@/lib/download";
-import { parsePageRanges } from "@/lib/logic/pdf";
+import { parsePageRanges, outputName } from "@/lib/logic/pdf";
 import { getPdfLib, loadPdfDoc, pdfBlob, renderPageToCanvas } from "@/lib/pdf";
 
 type Margins = { top: number; right: number; bottom: number; left: number };
@@ -25,6 +26,15 @@ export default function CropPdf() {
 
   const previewRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Drop stale output when a different document is opened (render-time reset).
+  const [prevFile, setPrevFile] = useState<File | null>(null);
+  const curFile = state?.file ?? null;
+  if (curFile !== prevFile) {
+    setPrevFile(curFile);
+    setResult(null);
+    setError(null);
+  }
 
   // First-page preview with a live crop rectangle
   useEffect(() => {
@@ -93,7 +103,7 @@ export default function CropPdf() {
 
       const bytes = await doc.save();
       const blob = pdfBlob(bytes);
-      const name = state.file.name.replace(/\.pdf$/i, "-cropped.pdf");
+      const name = outputName(state.file.name, "-cropped");
       downloadBlob(blob, name);
       setResult({ blob, name });
     } catch (err) {
@@ -234,6 +244,11 @@ export default function CropPdf() {
           <p className="text-sm text-destructive">{openError ?? error}</p>
         </div>
       )}
+
+      <ToolNote>
+        Cropping only sets the CropBox — it is reversible and the content bytes
+        remain extractable.
+      </ToolNote>
     </div>
   );
 }

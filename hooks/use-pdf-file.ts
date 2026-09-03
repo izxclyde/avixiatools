@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { openPdfFile } from "@/lib/pdf";
+import { checkPageCount, checkPdfFile } from "@/lib/logic/pdf";
 
 export type PdfFileState = {
   file: File;
@@ -26,10 +27,22 @@ export function usePdfFile() {
       setError("Only PDF files are supported.");
       return;
     }
+    const tooBig = checkPdfFile(file);
+    if (tooBig) {
+      setError(tooBig);
+      return;
+    }
     setError(null);
     setOpening(true);
     try {
       const pdf = await openPdfFile(file);
+      const tooLong = checkPageCount(pdf.numPages);
+      if (tooLong) {
+        setError(tooLong);
+        setState(null);
+        await pdf.loadingTask.destroy();
+        return;
+      }
       setState({ file, pdf, pageCount: pdf.numPages });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't open this PDF.");

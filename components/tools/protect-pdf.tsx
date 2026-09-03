@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { ShareButton } from "@/components/tools/share-button";
 import { ToolNote } from "@/components/tools/tool-note";
 import { downloadBlob } from "@/lib/download";
+import { checkPdfFile, outputName } from "@/lib/logic/pdf";
 import { loadPdfDoc, pdfBlob } from "@/lib/pdf";
 
 export default function ProtectPdf() {
@@ -32,6 +33,11 @@ export default function ProtectPdf() {
       setError("Only PDF files are supported.");
       return;
     }
+    const tooBig = checkPdfFile(pdf);
+    if (tooBig) {
+      setError(tooBig);
+      return;
+    }
     setError(null);
     setResult(null);
     setFile(pdf);
@@ -39,6 +45,10 @@ export default function ProtectPdf() {
 
   const protect = async () => {
     if (!file || !password || busy) return;
+    if (password.length < 4) {
+      setError("Use at least 4 characters for the password.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -54,7 +64,7 @@ export default function ProtectPdf() {
       });
       const bytes = await doc.save();
       const blob = pdfBlob(bytes);
-      const name = file.name.replace(/\.pdf$/i, "-protected.pdf");
+      const name = outputName(file.name, "-protected");
       downloadBlob(blob, name);
       setResult({ blob, name });
     } catch (err) {
@@ -125,6 +135,7 @@ export default function ProtectPdf() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"
+                minLength={4}
               />
             </div>
             <div className="space-y-2">

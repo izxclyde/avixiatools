@@ -221,6 +221,10 @@ export function htmlToContent(html: string): Content[] {
           }))
         );
         if (rows.length > 0) {
+          let maxCols = 0;
+          for (const r of rows) if (r.length > maxCols) maxCols = r.length;
+          for (const r of rows)
+            while (r.length < maxCols) r.push({ text: "", style: "cell" });
           content.push({
             table: { headerRows: child.querySelector("thead") ? 1 : 0, body: rows },
             layout: "lightHorizontalLines",

@@ -8,6 +8,7 @@ import { ShareButton } from "@/components/tools/share-button";
 import { ToolNote } from "@/components/tools/tool-note";
 import { downloadBlob } from "@/lib/download";
 import { getPdfMake } from "@/lib/pdfdoc";
+import { MAX_TEXT_CHARS } from "@/lib/logic/pdf";
 
 type Source = { name: string; text: string };
 
@@ -32,6 +33,8 @@ export default function TxtToPdf() {
     file.text().then((text) => {
       setError(null);
       setSource({ name: file.name, text });
+    }).catch(() => {
+      setError("Reading the file failed.");
     });
   }, []);
 
@@ -40,6 +43,11 @@ export default function TxtToPdf() {
     setBusy(true);
     setError(null);
     try {
+      if (source.text.length > MAX_TEXT_CHARS) {
+        throw new Error(
+          `Text is over the ${MAX_TEXT_CHARS.toLocaleString()} character limit — split it into smaller files first.`
+        );
+      }
       const pdfMake = await getPdfMake();
       // Blank lines split paragraphs; single newlines become line breaks
       const paragraphs = source.text

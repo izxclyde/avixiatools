@@ -7,6 +7,7 @@ import { ShareButton } from "@/components/tools/share-button";
 import { ToolNote } from "@/components/tools/tool-note";
 import { downloadBlob } from "@/lib/download";
 import { contentToBlob, htmlToContent, type Content } from "@/lib/pdfdoc";
+import { MAX_TEXT_CHARS } from "@/lib/logic/pdf";
 
 type SpineDoc = { href: string };
 
@@ -77,12 +78,37 @@ export default function EpubToPdf() {
       const parser = new DOMParser();
       const content: Content[] = [];
       let chapterIndex = 0;
+      let skipped = 0;
+      let totalChars = 0;
       for (const doc of docs) {
         chapterIndex++;
         setProgress(`Chapter ${chapterIndex} of ${docs.length}…`);
-        const path = decodeURIComponent(opfDir + doc.href).replace(/#.*$/, "");
+        const raw = doc.href.replace(/#.*$/, "");
+        let decoded: string;
+        try {
+          decoded = decodeURIComponent(raw);
+        } catch {
+          decoded = raw;
+        }
+        const combined = decoded.startsWith("/") ? decoded.slice(1) : opfDir + decoded;
+        const parts: string[] = [];
+        for (const seg of combined.split("/")) {
+          if (seg === "" || seg === ".") continue;
+          if (seg === "..") parts.pop();
+          else parts.push(seg);
+        }
+        const path = parts.join("/");
         const html = await zip.file(path)?.async("string");
-        if (!html) continue;
+        if (!html) {
+          skipped++;
+          continue;
+        }
+        totalChars += html.length;
+        if (totalChars > MAX_TEXT_CHARS) {
+          throw new Error(
+            `Text is over the ${MAX_TEXT_CHARS.toLocaleString()} character limit — this EPUB is too large to convert in the browser.`
+          );
+        }
         const blocks = htmlToContent(html);
         if (blocks.length === 0) continue;
         if (content.length > 0 && blocks[0]) {
@@ -96,6 +122,9 @@ export default function EpubToPdf() {
       const name = file.name.replace(/\.epub$/i, ".pdf");
       downloadBlob(blob, name);
       setResult({ blob, name });
+      if (skipped > 0) {
+        setError(`Skipped ${skipped} chapter(s) that couldn't be resolved.`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Building the PDF failed.");
     } finally {

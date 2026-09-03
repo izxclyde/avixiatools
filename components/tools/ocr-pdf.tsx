@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { AlertCircle, Loader2, ScanText, Trash2, Upload } from "lucide-react";
+import { AlertCircle, Loader2, ScanText, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -16,6 +16,7 @@ import { ToolNote } from "@/components/tools/tool-note";
 import { usePdfFile } from "@/hooks/use-pdf-file";
 import { downloadBlob } from "@/lib/download";
 import { canvasToBlob, getPdfLib, pdfBlob, renderPageToCanvas } from "@/lib/pdf";
+import { baseName, outputName } from "@/lib/logic/pdf";
 
 const LANGUAGES = [
   { value: "eng", label: "English" },
@@ -40,9 +41,11 @@ export default function OcrPdf() {
   const [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const cancelRef = useRef(false);
 
   const run = async () => {
     if (!state || busy) return;
+    cancelRef.current = false;
     setBusy(true);
     setError(null);
     setResult(null);
@@ -56,6 +59,10 @@ export default function OcrPdf() {
         const texts: string[] = [];
 
         for (let i = 1; i <= state.pageCount; i++) {
+          if (cancelRef.current) {
+            setError("Cancelled — no file was downloaded.");
+            return;
+          }
           setProgress(`Reading page ${i} of ${state.pageCount}…`);
           const pageProxy = await state.pdf.getPage(i);
           const base = pageProxy.getViewport({ scale: 1 });
@@ -78,7 +85,7 @@ export default function OcrPdf() {
           const joined = texts.filter(Boolean).join("\n\n");
           if (!joined.trim()) throw new Error("No readable text was found on any page.");
           const blob = new Blob([joined], { type: "text/plain" });
-          const name = state.file.name.replace(/\.pdf$/i, ".txt");
+          const name = `${baseName(state.file.name)}.txt`;
           downloadBlob(blob, name);
           setResult({ blob, name });
           return;
@@ -95,7 +102,7 @@ export default function OcrPdf() {
         }
         const bytes = await out.save();
         const blob = pdfBlob(bytes);
-        const name = state.file.name.replace(/\.pdf$/i, "-searchable.pdf");
+        const name = outputName(state.file.name, "-searchable");
         downloadBlob(blob, name);
         setResult({ blob, name });
       } finally {
@@ -175,6 +182,17 @@ export default function OcrPdf() {
                   variant="outline"
                   className="font-semibold"
                 />
+                {busy && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      cancelRef.current = true;
+                    }}
+                    className="font-semibold"
+                  >
+                    Cancel
+                  </Button>
+                )}
                 <Button size="lg" onClick={run} disabled={busy} className="font-semibold">
                   {busy ? (
                     <>

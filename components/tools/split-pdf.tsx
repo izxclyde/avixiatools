@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { chunkPages, parseRangeSegment } from "@/lib/logic/pdf";
+import { baseName, chunkPages, parseRangeSegment } from "@/lib/logic/pdf";
 import { usePdfFile } from "@/hooks/use-pdf-file";
 import { downloadBlob } from "@/lib/download";
 import { getPdfLib, loadPdfDoc, pdfBlob } from "@/lib/pdf";
@@ -22,6 +22,14 @@ export default function SplitPdf() {
   const [result, setResult] = useState<{ blob: Blob; filename: string; label: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Drop stale output when a different document is opened (render-time reset).
+  const [prevFile, setPrevFile] = useState<File | null>(null);
+  const curFile = state?.file ?? null;
+  if (curFile !== prevFile) {
+    setPrevFile(curFile);
+    setResult(null);
+  }
 
   // Each comma segment becomes its own document, in the order typed.
   // Returns an error message instead of page groups when input is bad.
@@ -48,6 +56,8 @@ export default function SplitPdf() {
 
   const groups = state ? buildGroups() : null;
   const validGroups = typeof groups === "string" ? null : groups;
+  const flatGroups = validGroups ? validGroups.flat() : [];
+  const hasOverlap = flatGroups.length > new Set(flatGroups).size;
   const preview =
     typeof groups === "string"
       ? ""
@@ -62,7 +72,7 @@ export default function SplitPdf() {
     setBusy(true);
     try {
       const src = await loadPdfDoc(await state.file.arrayBuffer());
-      const base = state.file.name.replace(/\.pdf$/i, "");
+      const base = baseName(state.file.name);
       const files: File[] = [];
 
       for (let i = 0; i < validGroups.length; i++) {
@@ -156,6 +166,11 @@ export default function SplitPdf() {
               </TabsContent>
             </Tabs>
 
+            {hasOverlap && (
+              <p className="px-4 pb-2 text-xs text-amber-600">
+                Some pages repeat across outputs.
+              </p>
+            )}
             <div className="flex border-t">
               <div className="flex flex-1 items-center px-4 text-sm text-muted-foreground">
                 {preview}

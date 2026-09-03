@@ -20,6 +20,7 @@ import { ShareButton } from "@/components/tools/share-button";
 import { ToolNote } from "@/components/tools/tool-note";
 import { usePdfFile } from "@/hooks/use-pdf-file";
 import { downloadBlob } from "@/lib/download";
+import { outputName } from "@/lib/logic/pdf";
 import { loadPdfDoc, pdfBlob, renderPageToCanvas } from "@/lib/pdf";
 
 // --- signature capture -------------------------------------------------------
@@ -280,7 +281,7 @@ export default function SignPdf() {
   const [sigMode, setSigMode] = useState<"draw" | "upload">("draw");
   const [removeBackground, setRemoveBackground] = useState(true);
   const [pageNum, setPageNum] = useState(1);
-  const [placement, setPlacement] = useState<{ cx: number; cy: number } | null>(null);
+  const [placement, setPlacement] = useState<{ cx: number; cy: number; page: number } | null>(null);
   const [widthPt, setWidthPt] = useState(140);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -288,6 +289,17 @@ export default function SignPdf() {
 
   const previewRef = useRef<HTMLDivElement>(null); // canvas host — React never touches its children
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Drop per-file work when a different document is opened (render-time reset).
+  const [prevFile, setPrevFile] = useState<File | null>(null);
+  const curFile = state?.file ?? null;
+  if (curFile !== prevFile) {
+    setPrevFile(curFile);
+    setPlacement(null);
+    setPageNum(1);
+    setResult(null);
+    setError(null);
+  }
 
   // Render the current page preview into the dedicated host node
   useEffect(() => {
@@ -323,12 +335,13 @@ export default function SignPdf() {
       if (!canvas || !signature) return;
       const rect = canvas.getBoundingClientRect();
       setPlacement({
-        cx: (e.clientX - rect.left) / rect.width,
-        cy: (e.clientY - rect.top) / rect.height,
+        cx: Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)),
+        cy: Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height)),
+        page: pageNum,
       });
       setResult(null);
     },
-    [signature]
+    [signature, pageNum]
   );
 
   const apply = async () => {
@@ -341,7 +354,7 @@ export default function SignPdf() {
         await (await fetch(signature.url)).arrayBuffer()
       );
       const image = await doc.embedPng(pngBytes);
-      const page = doc.getPage(pageNum - 1);
+      const page = doc.getPage(placement.page - 1);
       const { width, height } = page.getSize();
 
       const w = widthPt;
@@ -352,7 +365,7 @@ export default function SignPdf() {
 
       const bytes = await doc.save();
       const blob = pdfBlob(bytes);
-      const name = state.file.name.replace(/\.pdf$/i, "-signed.pdf");
+      const name = outputName(state.file.name, "-signed");
       downloadBlob(blob, name);
       setResult({ blob, name });
     } catch (err) {

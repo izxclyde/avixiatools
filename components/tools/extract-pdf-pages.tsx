@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { PageGrid } from "@/components/tools/page-grid";
 import { usePdfFile } from "@/hooks/use-pdf-file";
 import { downloadBlob } from "@/lib/download";
+import { outputName } from "@/lib/logic/pdf";
 import { getPdfLib, loadPdfDoc, pdfBlob } from "@/lib/pdf";
 import { ShareButton } from "@/components/tools/share-button";
 
@@ -17,6 +18,15 @@ export default function ExtractPdfPages() {
   const [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Drop stale output when a different document is opened (render-time reset).
+  const [prevFile, setPrevFile] = useState<File | null>(null);
+  const curFile = state?.file ?? null;
+  if (curFile !== prevFile) {
+    setPrevFile(curFile);
+    setResult(null);
+    setError(null);
+  }
 
   const toggle = (page: number) => {
     setSelected((prev) => {
@@ -39,7 +49,7 @@ export default function ExtractPdfPages() {
       pages.forEach((page) => out.addPage(page));
       const bytes = await out.save();
       const blob = pdfBlob(bytes);
-      const name = state.file.name.replace(/\.pdf$/i, "-extracted.pdf");
+      const name = outputName(state.file.name, "-extracted");
       downloadBlob(blob, name);
       setResult({ blob, name });
     } catch (err) {
