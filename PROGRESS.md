@@ -161,10 +161,18 @@ Known limits (surfaced in each tool's note): Word/Excel are text-level conversio
 - shadcn/ui components: card, input, label, select, textarea, tabs, sheet, scroll-area, separator, badge, tooltip, switch, slider, checkbox, etc.
 
 **Current verification:**
-- `npm run build` — passes (Next.js 16 Turbopack); all 21 tool routes prerender
+- `npm run build` — passes (Next.js 16 Turbopack); all 44 routes prerender
 - `npm run lint` — passes (0 errors; pre-existing `<img>` warnings in qr-generator/page-grid thumbnails are intentional for blob/data-URL images)
-- `npm test` — 47/47 logic tests pass
-- All 21 active tools render interactively at `http://localhost:3000`
+- `npm test` — 64/64 pass (`tests/logic.test.mjs` + `tests/pdf-unlock.test.mjs`; run via `node --test "tests/*.test.mjs"`)
+- All active tools render interactively at `http://localhost:3000`
+
+**PDF hardening pass (deep test → fix):**
+- Unlock PDF was shipping still-encrypted files (save-after-load preserves encryption); now copies pages into a fresh document — covered by `tests/pdf-unlock.test.mjs`
+- Shared guards in `lib/logic/pdf.ts`: 200MB file / 1000-page caps (`checkPdfFile`, `checkPageCount`, wired into `usePdfFile` + standalone accept paths), 1M-char text cap, 5000×50 CSV cap
+- Cancel buttons on compress, pdf-to-jpg, flatten-full, redact, pdf-to-word/excel, OCR loops
+- Sign placement is page-pinned; redact/sign/split/organize/extract/compress/crop reset stale per-file state on file change
+- All PDF filename outputs go through `baseName`/`outputName` (no-extension names now keep `.pdf`/`.docx`/`.xlsx`/`.txt`)
+- Disclosures added: crop is CropBox-only (reversible), compress flattens transparency to black, GIF embeds first frame, protect needs ≥4-char password, unlock distinguishes wrong-password from corrupt files
 
 ---
 *This file is the single source of truth for project state. If context is lost, resume from here.*

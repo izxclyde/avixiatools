@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { sanitizeWinAnsi } from "@/lib/logic/pdf";
+import { sanitizeWinAnsi, checkPdfFile, outputName } from "@/lib/logic/pdf";
 import { getPdfLib, loadPdfDoc, pdfBlob } from "@/lib/pdf";
 import { ShareButton } from "@/components/tools/share-button";
 import { downloadBlob } from "@/lib/download";
@@ -30,6 +30,7 @@ export default function WatermarkPdf() {
   const [position, setPosition] = useState<Position>("center");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warn, setWarn] = useState<string | null>(null);
   const [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -42,6 +43,11 @@ export default function WatermarkPdf() {
       setError("Only PDF files are supported.");
       return;
     }
+    const tooBig = checkPdfFile(pdf);
+    if (tooBig) {
+      setError(tooBig);
+      return;
+    }
     setError(null);
     setFile(pdf);
   }, []);
@@ -50,6 +56,11 @@ export default function WatermarkPdf() {
     if (!file || !text.trim() || busy) return;
     setBusy(true);
     setError(null);
+    setWarn(
+      sanitizeWinAnsi(text) !== text
+        ? 'Some characters are not supported and will render as "?".'
+        : null
+    );
     try {
       const doc = await loadPdfDoc(await file.arrayBuffer());
       const { StandardFonts, degrees, rgb } = await getPdfLib();
@@ -115,7 +126,7 @@ export default function WatermarkPdf() {
 
       const bytes = await doc.save();
       const blob = pdfBlob(bytes);
-      const name = file.name.replace(/\.pdf$/i, "-watermarked.pdf");
+      const name = outputName(file.name, "-watermarked");
       downloadBlob(blob, name);
       setResult({ blob, name });
     } catch (err) {
@@ -185,6 +196,7 @@ export default function WatermarkPdf() {
                 onChange={(e) => setText(e.target.value)}
                 placeholder="CONFIDENTIAL"
               />
+              {warn && <p className="text-xs text-amber-600">{warn}</p>}
             </div>
             <div className="space-y-2">
               <Label>Size ({fontSize}pt)</Label>

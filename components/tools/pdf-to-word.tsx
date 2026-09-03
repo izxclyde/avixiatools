@@ -1,13 +1,14 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { AlertCircle, Loader2, Trash2, Upload } from "lucide-react";
+import { AlertCircle, Loader2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ShareButton } from "@/components/tools/share-button";
 import { ToolNote } from "@/components/tools/tool-note";
 import { usePdfFile } from "@/hooks/use-pdf-file";
 import { downloadBlob } from "@/lib/download";
 import { extractPageLines } from "@/lib/pdf";
+import { baseName } from "@/lib/logic/pdf";
 
 export default function PdfToWord() {
   const { state, error: openError, opening, open, clear } = usePdfFile();
@@ -17,9 +18,11 @@ export default function PdfToWord() {
   const [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const cancelRef = useRef(false);
 
   const convert = async () => {
     if (!state || busy) return;
+    cancelRef.current = false;
     setBusy(true);
     setError(null);
     try {
@@ -27,6 +30,10 @@ export default function PdfToWord() {
       const children: InstanceType<typeof Paragraph>[] = [];
 
       for (let i = 1; i <= state.pageCount; i++) {
+        if (cancelRef.current) {
+          setError("Cancelled — no file was downloaded.");
+          return;
+        }
         setProgress(`Extracting page ${i} of ${state.pageCount}…`);
         if (state.pageCount > 1) {
           children.push(
@@ -58,7 +65,7 @@ export default function PdfToWord() {
         },
       });
       const blob = await Packer.toBlob(doc);
-      const name = state.file.name.replace(/\.pdf$/i, ".docx");
+      const name = `${baseName(state.file.name)}.docx`;
       downloadBlob(blob, name);
       setResult({ blob, name });
     } catch (err) {
@@ -105,6 +112,17 @@ export default function PdfToWord() {
                   variant="outline"
                   className="font-semibold"
                 />
+                {busy && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      cancelRef.current = true;
+                    }}
+                    className="font-semibold"
+                  >
+                    Cancel
+                  </Button>
+                )}
                 <Button onClick={convert} disabled={busy} className="font-semibold">
                   {busy ? (
                     <>

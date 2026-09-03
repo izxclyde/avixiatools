@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { ShareButton } from "@/components/tools/share-button";
 import { ToolNote } from "@/components/tools/tool-note";
 import { downloadBlob } from "@/lib/download";
-import { getPdfLib, pdfBlob } from "@/lib/pdf";
+import { checkPdfFile, outputName } from "@/lib/logic/pdf";
+import { createPdfDoc, getPdfLib, pdfBlob } from "@/lib/pdf";
 
 export default function UnlockPdf() {
   const [file, setFile] = useState<File | null>(null);
@@ -27,6 +28,11 @@ export default function UnlockPdf() {
       setError("Only PDF files are supported.");
       return;
     }
+    const tooBig = checkPdfFile(pdf);
+    if (tooBig) {
+      setError(tooBig);
+      return;
+    }
     setError(null);
     setResult(null);
     setFile(pdf);
@@ -39,16 +45,32 @@ export default function UnlockPdf() {
     try {
       const { PDFDocument } = await getPdfLib();
       // Decrypts with the given password; a wrong password throws
-      const doc = await PDFDocument.load(await file.arrayBuffer(), {
-        password,
-      });
-      const bytes = await doc.save();
+      let src;
+      try {
+        src = await PDFDocument.load(await file.arrayBuffer(), {
+          password,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "";
+        if (/incorrect|password/i.test(msg)) {
+          setError("Couldn't decrypt this PDF — the password looks wrong.");
+        } else {
+          setError("Couldn't read this file — it may be corrupt or not a real PDF.");
+        }
+        return;
+      }
+      // Saving the loaded doc preserves its encryption, so copy pages
+      // into a fresh document to produce a genuinely unlocked file.
+      const out = await createPdfDoc();
+      const pages = await out.copyPages(src, src.getPageIndices());
+      pages.forEach((page) => out.addPage(page));
+      const bytes = await out.save();
       const blob = pdfBlob(bytes);
-      const name = file.name.replace(/\.pdf$/i, "-unlocked.pdf");
+      const name = outputName(file.name, "-unlocked");
       downloadBlob(blob, name);
       setResult({ blob, name });
-    } catch {
-      setError("Couldn't decrypt this PDF — the password looks wrong.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Decryption failed.");
     } finally {
       setBusy(false);
     }

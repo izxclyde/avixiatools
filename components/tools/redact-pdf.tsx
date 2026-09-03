@@ -14,6 +14,7 @@ import { ShareButton } from "@/components/tools/share-button";
 import { ToolNote } from "@/components/tools/tool-note";
 import { usePdfFile } from "@/hooks/use-pdf-file";
 import { downloadBlob } from "@/lib/download";
+import { outputName } from "@/lib/logic/pdf";
 import { canvasToBlob, getPdfLib, loadPdfDoc, pdfBlob, renderPageToCanvas } from "@/lib/pdf";
 
 type Rect = { x0: number; y0: number; x1: number; y1: number }; // fractions of page
@@ -32,6 +33,18 @@ export default function RedactPdf() {
   const canvasHostRef = useRef<HTMLDivElement>(null); // canvas host — React never touches its children
   const originRef = useRef<{ x: number; y: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const cancelRef = useRef(false);
+
+  // Drop per-file work when a different document is opened (render-time reset).
+  const [prevFile, setPrevFile] = useState<File | null>(null);
+  const curFile = state?.file ?? null;
+  if (curFile !== prevFile) {
+    setPrevFile(curFile);
+    setMarks({});
+    setPageNum(1);
+    setResult(null);
+    setError(null);
+  }
 
   // Render the current page preview into the dedicated host node
   useEffect(() => {
@@ -101,6 +114,7 @@ export default function RedactPdf() {
   const apply = async () => {
     if (!state || busy || totalMarks === 0) return;
     setBusy(true);
+    cancelRef.current = false;
     setError(null);
     try {
       const lib = await getPdfLib();
@@ -108,6 +122,10 @@ export default function RedactPdf() {
       const out = await lib.PDFDocument.create();
 
       for (let i = 1; i <= state.pageCount; i++) {
+        if (cancelRef.current) {
+          setError("Cancelled — no file was downloaded.");
+          return;
+        }
         const rects = marks[i] ?? [];
         if (rects.length === 0) {
           // Untouched pages are copied losslessly
@@ -140,7 +158,7 @@ export default function RedactPdf() {
 
       const bytes = await out.save();
       const blob = pdfBlob(bytes);
-      const name = state.file.name.replace(/\.pdf$/i, "-redacted.pdf");
+      const name = outputName(state.file.name, "-redacted");
       downloadBlob(blob, name);
       setResult({ blob, name });
     } catch (err) {
@@ -257,6 +275,16 @@ export default function RedactPdf() {
                 </p>
               )}
               <div className="ml-auto flex items-center gap-2">
+                {busy && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      cancelRef.current = true;
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                )}
                 <ShareButton
                   blob={result?.blob}
                   filename={result?.name ?? ""}

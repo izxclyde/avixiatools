@@ -16,6 +16,7 @@ import { ShareButton } from "@/components/tools/share-button";
 import { ToolNote } from "@/components/tools/tool-note";
 import { downloadBlob } from "@/lib/download";
 import { contentToBlob, htmlToContent } from "@/lib/pdfdoc";
+import { MAX_TEXT_CHARS } from "@/lib/logic/pdf";
 
 export default function HtmlToPdf() {
   const [html, setHtml] = useState("");
@@ -46,6 +47,11 @@ export default function HtmlToPdf() {
     setBusy(true);
     setError(null);
     try {
+      if (html.length > MAX_TEXT_CHARS) {
+        throw new Error(
+          `Text is over the ${MAX_TEXT_CHARS.toLocaleString()} character limit — split it into smaller files first.`
+        );
+      }
       const content = htmlToContent(html);
       if (content.length === 0) throw new Error("No convertible content found in this HTML.");
       const blob = await contentToBlob(content, orientation);

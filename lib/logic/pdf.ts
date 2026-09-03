@@ -45,10 +45,37 @@ export function formatPageLabel(template: string, n: number, total: number): str
   return template.replaceAll("{n}", String(n)).replaceAll("{total}", String(total));
 }
 
+/** "scan.pdf" → "scan"; "scan" → "scan" (no-op when no extension). */
+export function baseName(original: string): string {
+  return original.replace(/\.pdf$/i, "");
+}
+
 /** "scan.pdf" + "-compressed" → "scan-compressed.pdf"; appends .pdf when missing. */
 export function outputName(original: string, suffix: string): string {
-  const base = original.replace(/\.pdf$/i, "");
-  return `${base}${suffix}.pdf`;
+  return `${baseName(original)}${suffix}.pdf`;
+}
+
+// ponytail: generous ceilings that only stop tab-crashing inputs, not legit files.
+export const MAX_PDF_BYTES = 200 * 1024 * 1024;
+export const MAX_PDF_PAGES = 1000;
+export const MAX_TEXT_CHARS = 1_000_000;
+export const MAX_CSV_ROWS = 5000;
+export const MAX_CSV_COLS = 50;
+
+/** Null when the file fits in-browser processing, otherwise a user-facing reason. */
+export function checkPdfFile(file: { size: number }): string | null {
+  if (file.size > MAX_PDF_BYTES) {
+    return `This file is ${formatBytes(file.size)} — over the ${formatBytes(MAX_PDF_BYTES)} limit for in-browser processing.`;
+  }
+  return null;
+}
+
+/** Null when the page count fits, otherwise a user-facing reason. */
+export function checkPageCount(pageCount: number): string | null {
+  if (pageCount > MAX_PDF_PAGES) {
+    return `This PDF has ${pageCount} pages — over the ${MAX_PDF_PAGES}-page limit for in-browser processing. Split it into smaller files first.`;
+  }
+  return null;
 }
 
 export function formatBytes(bytes: number): string {

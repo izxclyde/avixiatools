@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { downloadBlob } from "@/lib/download";
 import { createPdfDoc, imageFileToEmbeddable, pdfBlob } from "@/lib/pdf";
 import { ShareButton } from "@/components/tools/share-button";
+import { ToolNote } from "@/components/tools/tool-note";
 
 type PageSize = "fit" | "a4" | "letter";
 
@@ -36,7 +37,14 @@ export default function JpgToPdf() {
   const addInputRef = useRef<HTMLInputElement>(null);
 
   const addImages = useCallback((incoming: FileList | File[]) => {
-    const imgs = [...incoming].filter((f) => f.type.startsWith("image/"));
+    const list = [...incoming];
+    if (list.some((f) => f.type === "image/svg+xml")) {
+      setError("SVG files aren't supported — export as PNG first.");
+      return;
+    }
+    const imgs = list.filter((f) =>
+      ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(f.type)
+    );
     if (imgs.length === 0) {
       setError("Only image files are supported.");
       return;
@@ -64,6 +72,15 @@ export default function JpgToPdf() {
       const m = pageSize === "fit" ? 0 : MARGINS[margin];
 
       for (const file of images) {
+        const bmp = await createImageBitmap(file);
+        const bw = bmp.width;
+        const bh = bmp.height;
+        bmp.close();
+        if (bw > 16000 || bh > 16000) {
+          throw new Error(
+            `"${file.name}" is ${bw}×${bh}px — images over 16000px on either side aren't supported.`
+          );
+        }
         const { data, type } = await imageFileToEmbeddable(file);
         const img = type === "jpg" ? await doc.embedJpg(data) : await doc.embedPng(data);
 
@@ -116,7 +133,7 @@ export default function JpgToPdf() {
           <input
             ref={inputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+            accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
             multiple
             onChange={(e) => {
               if (e.target.files) addImages(e.target.files);
@@ -185,7 +202,7 @@ export default function JpgToPdf() {
               <input
                 ref={addInputRef}
                 type="file"
-                accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
                 multiple
                 onChange={(e) => {
                   if (e.target.files) addImages(e.target.files);
@@ -295,6 +312,11 @@ export default function JpgToPdf() {
           <p className="text-sm text-destructive">{error}</p>
         </div>
       )}
+
+      <ToolNote>
+        Images are embedded in the order shown. Animated GIFs embed as their
+        first frame only.
+      </ToolNote>
     </div>
   );
 }

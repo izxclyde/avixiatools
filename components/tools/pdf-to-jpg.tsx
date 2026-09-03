@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { AlertCircle, Loader2, Trash2, Upload } from "lucide-react";
+import { AlertCircle, Loader2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -15,6 +15,7 @@ import { ShareButton } from "@/components/tools/share-button";
 import { usePdfFile } from "@/hooks/use-pdf-file";
 import { downloadBlob } from "@/lib/download";
 import { canvasToBlob, renderPageToCanvas } from "@/lib/pdf";
+import { baseName } from "@/lib/logic/pdf";
 
 type Format = "jpeg" | "png";
 
@@ -28,19 +29,25 @@ export default function PdfToJpg() {
   const [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const cancelRef = useRef(false);
 
   const convert = async () => {
     if (!state || busy) return;
+    cancelRef.current = false;
     setBusy(true);
     setError(null);
     setResult(null);
     setProgress({ done: 0, total: state.pageCount });
     try {
       const mime = format === "jpeg" ? "image/jpeg" : "image/png";
-      const base = state.file.name.replace(/\.pdf$/i, "");
+      const base = baseName(state.file.name);
       const files: File[] = [];
 
       for (let i = 1; i <= state.pageCount; i++) {
+        if (cancelRef.current) {
+          setError("Cancelled — no file was downloaded.");
+          return;
+        }
         const page = await state.pdf.getPage(i);
         const viewport = page.getViewport({ scale: 1 });
         const canvas = await renderPageToCanvas(
@@ -153,6 +160,17 @@ export default function PdfToJpg() {
                   variant="outline"
                   className="font-semibold"
                 />
+                {busy && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      cancelRef.current = true;
+                    }}
+                    className="font-semibold"
+                  >
+                    Cancel
+                  </Button>
+                )}
                 <Button onClick={convert} disabled={busy} className="font-semibold">
                   {busy ? (
                     <>

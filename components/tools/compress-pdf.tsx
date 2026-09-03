@@ -15,7 +15,7 @@ import { usePdfFile } from "@/hooks/use-pdf-file";
 import { downloadBlob } from "@/lib/download";
 import { canvasToBlob, createPdfDoc, pdfBlob, renderPageToCanvas } from "@/lib/pdf";
 import { ShareButton } from "@/components/tools/share-button";
-import { formatBytes } from "@/lib/logic/pdf";
+import { formatBytes, outputName } from "@/lib/logic/pdf";
 
 // ponytail: whole-page JPEG re-encode — text becomes an image (same tradeoff
 // as most in-browser compressors). Real content-stream optimisation would need
@@ -38,10 +38,21 @@ export default function CompressPdf() {
   const [compressed, setCompressed] = useState<{ blob: Blob; name: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const cancelRef = useRef(false);
+
+  // Drop stale output when a different document is opened (render-time reset).
+  const [prevFile, setPrevFile] = useState<File | null>(null);
+  const curFile = state?.file ?? null;
+  if (curFile !== prevFile) {
+    setPrevFile(curFile);
+    setResult(null);
+    setCompressed(null);
+  }
 
   const compress = async () => {
     if (!state || busy) return;
     setBusy(true);
+    cancelRef.current = false;
     setError(null);
     setResult(null);
     setProgress({ done: 0, total: state.pageCount });
@@ -50,6 +61,10 @@ export default function CompressPdf() {
       const out = await createPdfDoc();
 
       for (let i = 1; i <= state.pageCount; i++) {
+        if (cancelRef.current) {
+          setError("Cancelled — no file was downloaded.");
+          return;
+        }
         const pageProxy = await state.pdf.getPage(i);
         const base = pageProxy.getViewport({ scale: 1 });
         // Cap render width so huge pages don't blow past canvas limits
@@ -69,7 +84,7 @@ export default function CompressPdf() {
 
       const bytes = await out.save();
       const blob = pdfBlob(bytes);
-      const name = state.file.name.replace(/\.pdf$/i, "-compressed.pdf");
+      const name = outputName(state.file.name, "-compressed");
       setResult({ before: state.file.size, after: bytes.length });
       setCompressed({ blob, name });
       downloadBlob(blob, name);
@@ -118,8 +133,8 @@ export default function CompressPdf() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Pages are re-encoded as images, so scanned text stays readable but
-                  is no longer selectable.
+                  Pages are re-encoded as images, so text stays readable but is no
+                  longer selectable, and transparency flattens to black.
                 </p>
               </div>
             </div>
@@ -154,6 +169,16 @@ export default function CompressPdf() {
                 )}
               </p>
               <div className="flex items-center gap-2">
+                {busy && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      cancelRef.current = true;
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                )}
                 <ShareButton
                   blob={compressed?.blob}
                   filename={compressed?.name ?? "compressed.pdf"}

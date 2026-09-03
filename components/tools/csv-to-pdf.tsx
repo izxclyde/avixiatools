@@ -17,6 +17,7 @@ import { ToolNote } from "@/components/tools/tool-note";
 import { downloadBlob } from "@/lib/download";
 import { parseCsv } from "@/lib/logic/csv";
 import { getPdfMake } from "@/lib/pdfdoc";
+import { MAX_CSV_COLS, MAX_CSV_ROWS } from "@/lib/logic/pdf";
 
 export default function CsvToPdf() {
   const [csv, setCsv] = useState("");
@@ -49,7 +50,18 @@ export default function CsvToPdf() {
     try {
       const rows = parseCsv(csv);
       if (rows.length === 0) throw new Error("The CSV appears to be empty.");
-      const width = Math.max(...rows.map((r) => r.length));
+      if (rows.length > MAX_CSV_ROWS) {
+        throw new Error(
+          `This CSV has ${rows.length} rows — over the ${MAX_CSV_ROWS}-row limit. Split it into smaller files first.`
+        );
+      }
+      let width = 0;
+      for (const r of rows) if (r.length > width) width = r.length;
+      if (width > MAX_CSV_COLS) {
+        throw new Error(
+          `This CSV has ${width} columns — over the ${MAX_CSV_COLS}-column limit. Remove extra columns first.`
+        );
+      }
       const pad = (r: string[], style: "header" | "cell") =>
         r
           .map((cell) => ({ text: cell, style }))
@@ -189,7 +201,8 @@ export default function CsvToPdf() {
 
       <ToolNote>
         The first CSV row becomes the table header. Very wide tables fit better
-        in landscape; columns are sized automatically and long cells wrap.
+        in landscape; columns are sized automatically and long cells wrap. Very
+        wide tables may overflow the page width.
       </ToolNote>
     </div>
   );

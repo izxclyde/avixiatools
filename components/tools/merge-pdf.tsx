@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { AlertCircle, ArrowDown, ArrowUp, FileText, Loader2, Plus, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { downloadBlob } from "@/lib/download";
+import { baseName, checkPdfFile, outputName } from "@/lib/logic/pdf";
 import { createPdfDoc, loadPdfDoc, pdfBlob } from "@/lib/pdf";
 import { ShareButton } from "@/components/tools/share-button";
 
@@ -23,8 +24,18 @@ export default function MergePdf() {
       setError("Only PDF files can be merged.");
       return;
     }
-    setError(null);
-    setFiles((prev) => [...prev, ...pdfs]);
+    const fitting = pdfs.filter((f) => !checkPdfFile(f));
+    const skipped = pdfs.filter((f) => checkPdfFile(f));
+    if (fitting.length === 0) {
+      setError(`Skipped ${skipped.map((f) => f.name).join(", ")} — over the size limit.`);
+      return;
+    }
+    setError(
+      skipped.length > 0
+        ? `Skipped ${skipped.map((f) => f.name).join(", ")} — over the size limit.`
+        : null
+    );
+    setFiles((prev) => [...prev, ...fitting]);
   }, []);
 
   const move = (index: number, delta: -1 | 1) => {
@@ -44,20 +55,24 @@ export default function MergePdf() {
     setBusy(true);
     setError(null);
     setResult(null);
+    let current = "";
     try {
       const out = await createPdfDoc();
       for (const file of files) {
+        current = file.name;
         const doc = await loadPdfDoc(await file.arrayBuffer());
         const pages = await out.copyPages(doc, doc.getPageIndices());
         pages.forEach((page) => out.addPage(page));
       }
       const bytes = await out.save();
       const blob = pdfBlob(bytes);
-      const name = "merged.pdf";
+      const name = files[0] ? outputName(files[0].name, "-merged") : "merged.pdf";
       downloadBlob(blob, name);
       setResult({ blob, name });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Merging failed.");
+      setError(
+        `Failed on "${current || baseName(files[0]?.name ?? "file")}": ${err instanceof Error ? err.message : "Merging failed."}`
+      );
     } finally {
       setBusy(false);
     }
