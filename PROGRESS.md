@@ -44,6 +44,10 @@
 - A secondary **Share** button (`components/tools/share-button.tsx`) appears next to results only on devices that support Web Share with files (iOS/Android); it opens the native share sheet and falls back to a plain download if sharing fails. Desktop browsers never see it.
 - Result blobs are retained in state after processing so Share works after the automatic download.
 
+**CI & auto-merge:**
+- `.github/workflows/ci.yml` runs typecheck (`next typegen` + `tsc --noEmit`), lint, tests, and `next build` on Node 22 for every PR and `main` push. `main` requires all four checks (strict).
+- `.github/workflows/automerge.yml` — add the `automerge` label and the PR squash-merges itself once checks are green. No label = manual merge as before.
+
 **Wave 6 — PDF & Images (8 tools built & verified, all processing client-side):**
 
 | Tool | Slug | Notes |
