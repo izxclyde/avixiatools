@@ -20,7 +20,7 @@ import { ShareButton } from "@/components/tools/share-button";
 // Mobile uses the quantized (~44MB) build + downscaled input so the tab
 // isn't killed for memory (full fp32 + 12MP canvas = refresh-with-nothing).
 
-const MOBILE_MAX_SIDE = 1024;
+const MOBILE_MAX_SIDE = 800;
 const DESKTOP_MAX_SIDE = 1536;
 
 interface ProcessingState {
@@ -318,51 +318,25 @@ export default function BackgroundRemover() {
       if (result && result.length > 0 && result[0].mask) {
         const maskImage = result[0].mask;
 
-        let maskDataUrl: string;
-        let isBlobUrl = false;
-        if (typeof maskImage.toDataURL === "function") {
-          maskDataUrl = maskImage.toDataURL();
-        } else if (maskImage instanceof Blob) {
-          maskDataUrl = URL.createObjectURL(maskImage);
-          isBlobUrl = true;
-        } else if (typeof maskImage === "string") {
-          maskDataUrl = maskImage;
-        } else {
-          const tempCanvas = document.createElement("canvas");
-          tempCanvas.width = maskImage.width;
-          tempCanvas.height = maskImage.height;
-          const tempCtx = tempCanvas.getContext("2d")!;
-          const imageData = tempCtx.createImageData(
-            maskImage.width,
-            maskImage.height
-          );
-
-          const maskData = maskImage.data;
-          for (let i = 0; i < maskData.length; i++) {
-            const val = maskData[i];
-            imageData.data[i * 4] = val;
-            imageData.data[i * 4 + 1] = val;
-            imageData.data[i * 4 + 2] = val;
-            imageData.data[i * 4 + 3] = 255;
-          }
-          tempCtx.putImageData(imageData, 0, 0);
-          maskDataUrl = tempCanvas.toDataURL();
+        const finalImage = await applyMaskToImage(sourceImage, maskImage);
+        if (!mountedRef.current) {
+          URL.revokeObjectURL(finalImage.url);
+          return;
         }
+        objectUrlsRef.current.push(finalImage.url);
+        setResultBlob(finalImage.blob);
+        setResultImage(finalImage.url);
+        setProcessing({ status: "done" });
 
-        try {
-          const finalImage = await applyMaskToImage(sourceImage, maskDataUrl);
-          if (!mountedRef.current) {
-            URL.revokeObjectURL(finalImage.url);
-            return;
+        // On mobile, dispose the pipeline to free WASM heap memory (~44MB+)
+        // before the browser decodes and displays the final result <img />.
+        if (isMobileDevice() && pipelineRef.current?.dispose) {
+          try {
+            pipelineRef.current.dispose();
+          } catch {
+            // ignore
           }
-          objectUrlsRef.current.push(finalImage.url);
-          setResultBlob(finalImage.blob);
-          setResultImage(finalImage.url);
-          setProcessing({ status: "done" });
-        } finally {
-          if (isBlobUrl) {
-            URL.revokeObjectURL(maskDataUrl);
-          }
+          pipelineRef.current = null;
         }
       } else {
         throw new Error("Processing failed");
@@ -379,15 +353,13 @@ export default function BackgroundRemover() {
 
   const applyMaskToImage = async (
     imageUrl: string,
-    maskUrl: string
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    maskImage: any
   ): Promise<{ url: string; blob: Blob }> => {
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
 
-    const [img, mask] = await Promise.all([
-      loadImage(imageUrl),
-      loadImage(maskUrl),
-    ]);
+    const img = await loadImage(imageUrl);
 
     canvas.width = img.width;
     canvas.height = img.height;
@@ -402,22 +374,73 @@ export default function BackgroundRemover() {
       );
     }
 
-    const maskCanvas = document.createElement("canvas");
-    maskCanvas.width = img.width;
-    maskCanvas.height = img.height;
-    const maskCtx = maskCanvas.getContext("2d", { willReadFrequently: true })!;
-    maskCtx.drawImage(mask, 0, 0, img.width, img.height);
-    let maskData: ImageData;
-    try {
-      maskData = maskCtx.getImageData(0, 0, img.width, img.height);
-    } catch {
-      throw new Error(
-        "Your device ran out of memory. Try a smaller photo or take a new one at a lower resolution."
-      );
-    }
+    if (
+      maskImage &&
+      maskImage.data &&
+      maskImage.width === img.width &&
+      maskImage.height === img.height
+    ) {
+      // Direct pixel buffer copy — zero extra canvas/image objects
+      const maskData = maskImage.data;
+      const channels = maskImage.channels || 1;
+      for (let i = 0; i < imageData.data.length; i += 4) {
+        const maskIdx = Math.floor(i / 4) * channels;
+        imageData.data[i + 3] = maskData[maskIdx];
+      }
+    } else {
+      // Fallback path when dimensions differ or mask is URL/Blob
+      let maskUrl = "";
+      let isBlobUrl = false;
 
-    for (let i = 0; i < imageData.data.length; i += 4) {
-      imageData.data[i + 3] = maskData.data[i];
+      if (typeof maskImage === "string") {
+        maskUrl = maskImage;
+      } else if (maskImage instanceof Blob) {
+        maskUrl = URL.createObjectURL(maskImage);
+        isBlobUrl = true;
+      } else if (typeof maskImage?.toDataURL === "function") {
+        maskUrl = maskImage.toDataURL();
+      } else if (maskImage?.data) {
+        const tempCanvas = document.createElement("canvas");
+        tempCanvas.width = maskImage.width;
+        tempCanvas.height = maskImage.height;
+        const tempCtx = tempCanvas.getContext("2d")!;
+        const tempImgData = tempCtx.createImageData(
+          maskImage.width,
+          maskImage.height
+        );
+        const maskData = maskImage.data;
+        for (let i = 0; i < maskData.length; i++) {
+          const val = maskData[i];
+          tempImgData.data[i * 4] = val;
+          tempImgData.data[i * 4 + 1] = val;
+          tempImgData.data[i * 4 + 2] = val;
+          tempImgData.data[i * 4 + 3] = 255;
+        }
+        tempCtx.putImageData(tempImgData, 0, 0);
+        maskUrl = tempCanvas.toDataURL();
+        tempCanvas.width = 0;
+        tempCanvas.height = 0;
+      }
+
+      try {
+        const maskElement = await loadImage(maskUrl);
+        const maskCanvas = document.createElement("canvas");
+        maskCanvas.width = img.width;
+        maskCanvas.height = img.height;
+        const maskCtx = maskCanvas.getContext("2d", { willReadFrequently: true })!;
+        maskCtx.drawImage(maskElement, 0, 0, img.width, img.height);
+        const maskData = maskCtx.getImageData(0, 0, img.width, img.height);
+
+        for (let i = 0; i < imageData.data.length; i += 4) {
+          imageData.data[i + 3] = maskData.data[i];
+        }
+
+        // Release temporary canvas memory immediately
+        maskCanvas.width = 0;
+        maskCanvas.height = 0;
+      } finally {
+        if (isBlobUrl) URL.revokeObjectURL(maskUrl);
+      }
     }
 
     ctx.putImageData(imageData, 0, 0);
@@ -425,8 +448,12 @@ export default function BackgroundRemover() {
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob(resolve, "image/png")
     );
+
+    // Immediately zero out main canvas to release GPU texture memory
+    canvas.width = 0;
+    canvas.height = 0;
+
     if (!blob) throw new Error("Failed to encode PNG");
-    // ponytail: Blob URL, not dataURL — one fewer full-res base64 copy in memory.
     return { url: URL.createObjectURL(blob), blob };
   };
 
