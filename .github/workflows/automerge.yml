@@ -1,0 +1,21 @@
+name: automerge
+
+# Label-gated squash auto-merge: add the `automerge` label to a PR and GitHub
+# merges it by itself once all required checks pass. Uses native auto-merge
+# (gh pr merge --auto), so branch protection is always respected — a red
+# check blocks the merge by design. No third-party actions; gh is preinstalled.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled]
+
+jobs:
+  automerge:
+    if: contains(github.event.pull_request.labels.*.name, 'automerge')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - run: gh pr merge --auto --squash "$PR"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.html_url }}
