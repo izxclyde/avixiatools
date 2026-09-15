@@ -129,3 +129,70 @@
     @apply font-sans;
   }
 }
+
+.code-key {
+  color: oklch(0.55 0.19 290);
+}
+.dark .code-key {
+  color: oklch(0.72 0.18 290);
+}
+
+.code-string {
+  color: oklch(0.52 0.15 150);
+}
+.dark .code-string {
+  color: oklch(0.75 0.15 150);
+}
+
+.code-number {
+  color: oklch(0.52 0.17 240);
+}
+.dark .code-number {
+  color: oklch(0.75 0.15 240);
+}
+
+.code-boolean,
+.code-null {
+  color: oklch(0.58 0.18 55);
+}
+.dark .code-boolean,
+.dark .code-null {
+  color: oklch(0.78 0.16 65);
+}
+
+.code-tag {
+  color: oklch(0.55 0.19 290);
+  font-weight: 500;
+}
+.dark .code-tag {
+  color: oklch(0.72 0.18 290);
+}
+
+.code-attr {
+  color: oklch(0.52 0.17 240);
+}
+.dark .code-attr {
+  color: oklch(0.75 0.15 240);
+}
+
+.code-attr-value {
+  color: oklch(0.52 0.15 150);
+}
+.dark .code-attr-value {
+  color: oklch(0.75 0.15 150);
+}
+
+.code-punctuation {
+  color: var(--muted-foreground);
+  opacity: 0.8;
+}
+
+.tree-node-row {
+  transition: background-color 0.15s ease;
+}
+
+.tree-node-row:hover,
+.tree-node-row:focus-within,
+.tree-node-row[data-active="true"] {
+  background-color: var(--muted);
+}

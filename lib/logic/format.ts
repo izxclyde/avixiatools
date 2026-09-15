@@ -14,10 +14,77 @@ export function minifyJson(input: string): string | null {
   }
 }
 
+export type JsonPrimitiveValue = string | number | boolean | null;
+
+export type JsonNode =
+  | {
+      kind: "primitive";
+      value: JsonPrimitiveValue;
+      raw: string;
+    }
+  | {
+      kind: "object";
+      entries: { key: string; value: JsonNode }[];
+      raw: string;
+    }
+  | {
+      kind: "array";
+      items: JsonNode[];
+      raw: string;
+    };
+
+function buildJsonNode(val: unknown): JsonNode {
+  if (val === null || typeof val !== "object") {
+    return {
+      kind: "primitive",
+      value: val as JsonPrimitiveValue,
+      raw: JSON.stringify(val),
+    };
+  }
+  if (Array.isArray(val)) {
+    const items = val.map(buildJsonNode);
+    return {
+      kind: "array",
+      items,
+      raw: JSON.stringify(val, null, 2),
+    };
+  }
+  const entries = Object.entries(val).map(([key, v]) => ({
+    key,
+    value: buildJsonNode(v),
+  }));
+  return {
+    kind: "object",
+    entries,
+    raw: JSON.stringify(val, null, 2),
+  };
+}
+
+export function parseJsonTree(input: string): JsonNode | null {
+  try {
+    const parsed = JSON.parse(input);
+    return buildJsonNode(parsed);
+  } catch {
+    return null;
+  }
+}
+
+export function formatJsonProperty(key: string, valueNode: JsonNode): string {
+  return `${JSON.stringify(key)}: ${valueNode.raw}`;
+}
+
+export function getJsonNodeValueText(node: JsonNode): string {
+  if (node.kind === "primitive") {
+    if (typeof node.value === "string") return node.value;
+    return String(node.value);
+  }
+  return node.raw;
+}
+
 // ponytail: hand-rolled tokenizer so logic runs in plain Node for tests;
 // DOMParser exists only in the browser and re-serialising reorders attributes.
 
-type XmlPart =
+export type XmlPart =
   | { kind: "text"; value: string }
   | { kind: "open"; name: string; value: string }
   | { kind: "close"; name: string; value: string }
@@ -43,7 +110,7 @@ function tagEnd(input: string, from: number): number {
   return -1;
 }
 
-function tokenizeXml(input: string): XmlPart[] | null {
+export function tokenizeXml(input: string): XmlPart[] | null {
   const parts: XmlPart[] = [];
   let i = 0;
   while (i < input.length) {
@@ -96,7 +163,7 @@ function tokenizeXml(input: string): XmlPart[] | null {
   return parts;
 }
 
-type XmlNode =
+export type XmlNode =
   | { kind: "text" | "comment" | "cdata" | "pi"; raw: string }
   | {
       kind: "element";
@@ -159,7 +226,7 @@ function parseElement(tokens: XmlPart[], index: number): { node: XmlNode; next: 
   return null;
 }
 
-function parseXmlTree(tokens: XmlPart[]): XmlNode[] | null {
+export function parseXmlTree(tokens: XmlPart[]): XmlNode[] | null {
   const nodes: XmlNode[] = [];
   let i = 0;
   while (i < tokens.length) {
@@ -228,13 +295,41 @@ function formatNode(node: XmlNode, depth: number, out: string[]): void {
   out.push(pad + node.close);
 }
 
+export function parseXml(input: string): XmlNode[] | null {
+  const tokens = tokenizeXml(input);
+  if (!tokens) return null;
+  return parseXmlTree(tokens);
+}
+
+export function formatXmlNode(node: XmlNode, depth: number = 0): string {
+  const out: string[] = [];
+  formatNode(node, depth, out);
+  return out.join("\n");
+}
+
+export function getXmlNodeContent(node: XmlNode): string {
+  if (node.kind !== "element") {
+    if (node.kind === "text") return node.raw.trim();
+    if (node.kind === "cdata") return node.raw.slice(9, -3);
+    return node.raw;
+  }
+  if (node.selfClose) return "";
+  const textOnly = !hasElement(node.children) && hasText(node.children);
+  if (textOnly) {
+    return node.children.map((c) => c.raw).join("").trim();
+  }
+  const out: string[] = [];
+  for (const child of node.children) {
+    formatNode(child, 0, out);
+  }
+  return out.join("\n").trim();
+}
+
 // Smart text preservation: element-only subtrees are re-indented, text-only
 // elements collapse onto one line, and mixed content (text + elements) is
 // emitted verbatim so whitespace data is never corrupted.
 export function formatXml(input: string): string | null {
-  const tokens = tokenizeXml(input);
-  if (!tokens) return null;
-  const nodes = parseXmlTree(tokens);
+  const nodes = parseXml(input);
   if (!nodes) return null;
   const out: string[] = [];
   for (const node of nodes) formatNode(node, 0, out);

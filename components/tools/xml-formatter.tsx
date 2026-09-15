@@ -1,7 +1,8 @@
 "use client";
 
 import { FormatterPanel } from "@/components/tools/shared";
-import { formatXml, minifyXml } from "@/lib/logic/format";
+import { formatXml, minifyXml, parseXml } from "@/lib/logic/format";
+import { XmlTreeView } from "@/components/tools/xml-tree-view";
 
 export default function XmlFormatter() {
   return (
@@ -11,6 +12,11 @@ export default function XmlFormatter() {
       placeholder={'<?xml version="1.0"?>\n<root><item id="1">value</item></root>'}
       example={'<?xml version="1.0"?>\n<root><item id="1">value</item><item id="2">value</item></root>'}
       storageKey="avixia:xml:input"
+      renderOutput={(output) => {
+        const nodes = parseXml(output);
+        if (!nodes) return null;
+        return <XmlTreeView nodes={nodes} rawXml={output} />;
+      }}
     />
   );
 }
