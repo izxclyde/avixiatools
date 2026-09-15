@@ -129,18 +129,22 @@ export function FormatterPanel({
   placeholder,
   example,
   storageKey,
+  renderOutput,
 }: {
   format: (input: string) => string | null;
   minify?: (input: string) => string | null;
   placeholder?: string;
   example?: string;
   storageKey?: string;
+  renderOutput?: (output: string, isMinified: boolean) => React.ReactNode;
 }) {
   const [input, setInput] = usePersistedState<string>(storageKey ?? "", "");
   const [output, setOutput] = useState("");
+  const [isMinified, setIsMinified] = useState(false);
   const [error, setError] = useState("");
+  const [viewMode, setViewMode] = useState<"tree" | "raw">("tree");
 
-  const run = (fn: (s: string) => string | null) => {
+  const run = (fn: (s: string) => string | null, minifying = false) => {
     if (!input.trim()) {
       setOutput("");
       setError("");
@@ -153,6 +157,12 @@ export function FormatterPanel({
     } else {
       setOutput(result);
       setError("");
+      setIsMinified(minifying);
+      if (minifying) {
+        setViewMode("raw");
+      } else {
+        setViewMode("tree");
+      }
     }
   };
 
@@ -169,9 +179,9 @@ export function FormatterPanel({
         />
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={() => run(format)}>Format</Button>
+        <Button onClick={() => run(format, false)}>Format</Button>
         {minify && (
-          <Button variant="outline" onClick={() => run(minify)}>
+          <Button variant="outline" onClick={() => run(minify, true)}>
             Minify
           </Button>
         )}
@@ -194,14 +204,56 @@ export function FormatterPanel({
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       {output && (
-        <div className="grid gap-1.5">
-          <Label htmlFor="formatter-output">Output</Label>
-          <Textarea
-            id="formatter-output"
-            readOnly
-            value={output}
-            className="min-h-[200px] font-mono text-sm"
-          />
+        <div className="grid gap-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="formatter-output">Output</Label>
+            {renderOutput && (
+              <div className="flex items-center gap-1 rounded-md border bg-muted/40 p-0.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("tree")}
+                  className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                    viewMode === "tree"
+                      ? "bg-background text-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  aria-pressed={viewMode === "tree"}
+                >
+                  Interactive Tree
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("raw")}
+                  className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                    viewMode === "raw"
+                      ? "bg-background text-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  aria-pressed={viewMode === "raw"}
+                >
+                  Raw Text
+                </button>
+              </div>
+            )}
+          </div>
+
+          {renderOutput && viewMode === "tree" ? (
+            renderOutput(output, isMinified) ?? (
+              <Textarea
+                id="formatter-output"
+                readOnly
+                value={output}
+                className="min-h-[200px] font-mono text-sm"
+              />
+            )
+          ) : (
+            <Textarea
+              id="formatter-output"
+              readOnly
+              value={output}
+              className="min-h-[200px] font-mono text-sm"
+            />
+          )}
         </div>
       )}
     </div>
