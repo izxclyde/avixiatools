@@ -15,13 +15,15 @@ import { useFilePaste } from "@/hooks/use-file-paste";
 import { downloadBlob } from "@/lib/download";
 import { ShareButton } from "@/components/tools/share-button";
 
-// Adapted port of delphitools' background-remover (MIT) — see ACKNOWLEDGEMENTS.md.
-// Runs briaai/RMBG-1.4 via @huggingface/transformers; WebGPU with WASM fallback.
-// Mobile uses the quantized (~44MB) build + downscaled input so the tab
-// isn't killed for memory (full fp32 + 12MP canvas = refresh-with-nothing).
+// Enhanced background remover:
+// Runs briaai/RMBG-1.4 via dedicated Web Worker (WebGPU with WASM fallback).
+// On mobile, offloads ML execution off the main UI thread to prevent stutter,
+// runs inference on an 800px thumbnail to stay within memory limits, and applies
+// the high-quality mask to a high-resolution version (up to 2048px on mobile).
 
-const MOBILE_MAX_SIDE = 800;
-const DESKTOP_MAX_SIDE = 1536;
+const INFERENCE_MAX_SIDE = 800;
+const MOBILE_OUTPUT_MAX_SIDE = 2048;
+const DESKTOP_OUTPUT_MAX_SIDE = 2560;
 
 interface ProcessingState {
   status: "idle" | "downloading" | "processing" | "done" | "error";
@@ -57,6 +59,16 @@ function getSupportInfo(): SupportInfo {
       supported: false,
       reason:
         "This browser doesn't support WebAssembly, which the on-device engine needs.",
+      mobile,
+      hasWebGPU,
+    };
+  }
+  if (typeof Worker === "undefined") {
+    return {
+      checked: true,
+      supported: false,
+      reason:
+        "This browser doesn't support Web Workers, which are required for processing.",
       mobile,
       hasWebGPU,
     };
@@ -116,12 +128,20 @@ function friendlyError(error: unknown): string {
   return message;
 }
 
-// Downscale to a Blob URL (EXIF-aware). Keeps full-res phone photos from
-// blowing the tab's memory budget during inference + canvas compositing.
-async function fileToDownscaledUrl(
+interface PreparedImages {
+  sourceUrl: string;
+  inferenceBlob: Blob;
+  width: number;
+  height: number;
+}
+
+// Prepare two images in a single pass:
+// 1. High-res source image (up to 2048px on mobile, 2560px on desktop)
+// 2. Downscaled inference thumbnail (max 800px) specifically for the ML model
+async function prepareImages(
   file: File,
-  maxSide: number
-): Promise<string> {
+  isMobile: boolean
+): Promise<PreparedImages> {
   let bitmap: ImageBitmap;
   try {
     bitmap = await createImageBitmap(file, {
@@ -132,20 +152,55 @@ async function fileToDownscaledUrl(
       "Could not read that image. iPhone HEIC photos aren't supported — convert it to JPG or PNG first."
     );
   }
+
   try {
-    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-    const width = Math.max(1, Math.round(bitmap.width * scale));
-    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const origWidth = bitmap.width;
+    const origHeight = bitmap.height;
+
+    // 1. High-resolution canvas for display and final output
+    const maxOutputSide = isMobile ? MOBILE_OUTPUT_MAX_SIDE : DESKTOP_OUTPUT_MAX_SIDE;
+    const outputScale = Math.min(1, maxOutputSide / Math.max(origWidth, origHeight));
+    const outputWidth = Math.max(1, Math.round(origWidth * outputScale));
+    const outputHeight = Math.max(1, Math.round(origHeight * outputScale));
+
     const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = outputWidth;
+    canvas.height = outputHeight;
     const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(bitmap, 0, 0, width, height);
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/jpeg", 0.92)
+    ctx.drawImage(bitmap, 0, 0, outputWidth, outputHeight);
+
+    const isPng = file.type === "image/png";
+    const sourceBlob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, isPng ? "image/png" : "image/jpeg", 0.95)
     );
-    if (!blob) throw new Error("Could not read that image.");
-    return URL.createObjectURL(blob);
+    if (!sourceBlob) throw new Error("Could not read that image.");
+    const sourceUrl = URL.createObjectURL(sourceBlob);
+
+    // 2. Inference canvas (downscaled to 800px max side for fast & memory-safe ML inference)
+    const infScale = Math.min(1, INFERENCE_MAX_SIDE / Math.max(origWidth, origHeight));
+    const infWidth = Math.max(1, Math.round(origWidth * infScale));
+    const infHeight = Math.max(1, Math.round(origHeight * infScale));
+
+    canvas.width = infWidth;
+    canvas.height = infHeight;
+    ctx.drawImage(bitmap, 0, 0, infWidth, infHeight);
+
+    const inferenceBlob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.90)
+    );
+
+    // Release canvas memory
+    canvas.width = 0;
+    canvas.height = 0;
+
+    if (!inferenceBlob) throw new Error("Could not process image for engine.");
+
+    return {
+      sourceUrl,
+      inferenceBlob,
+      width: outputWidth,
+      height: outputHeight,
+    };
   } finally {
     bitmap.close();
   }
@@ -166,54 +221,68 @@ export default function BackgroundRemover() {
   );
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pipelineRef = useRef<any>(null);
+  const workerRef = useRef<Worker | null>(null);
+  const inferenceBlobRef = useRef<Blob | null>(null);
   const [resultBlob, setResultBlob] = useState<Blob | null>(null);
   const mountedRef = useRef(true);
   const objectUrlsRef = useRef<string[]>([]);
+
+  const terminateWorker = useCallback(() => {
+    if (workerRef.current) {
+      workerRef.current.terminate();
+      workerRef.current = null;
+    }
+  }, []);
+
+  const getWorker = useCallback((): Worker => {
+    if (!workerRef.current) {
+      workerRef.current = new Worker(
+        new URL("../../lib/workers/bg-remover.worker.ts", import.meta.url),
+        { type: "module" }
+      );
+    }
+    return workerRef.current;
+  }, []);
 
   const revokeTrackedUrls = useCallback(() => {
     for (const url of objectUrlsRef.current) URL.revokeObjectURL(url);
     objectUrlsRef.current = [];
   }, []);
 
-  // Dispose ML pipeline + Blob URLs on unmount to free model memory
+  // Terminate worker & revoke Blob URLs on unmount to free all model/worker memory
   useEffect(() => {
     return () => {
       mountedRef.current = false;
-      if (pipelineRef.current?.dispose) {
-        pipelineRef.current.dispose();
-        pipelineRef.current = null;
-      }
+      terminateWorker();
       for (const url of objectUrlsRef.current) URL.revokeObjectURL(url);
       objectUrlsRef.current = [];
     };
-  }, []);
+  }, [terminateWorker]);
 
   const readFile = useCallback(
     async (file: File) => {
+      terminateWorker();
+      inferenceBlobRef.current = null;
       revokeTrackedUrls();
       setSourceImage(null);
       setResultImage(null);
       setResultBlob(null);
       setProcessing({ status: "idle" });
       try {
-        const maxSide = isMobileDevice()
-          ? MOBILE_MAX_SIDE
-          : DESKTOP_MAX_SIDE;
-        const url = await fileToDownscaledUrl(file, maxSide);
+        const prepared = await prepareImages(file, isMobileDevice());
         if (!mountedRef.current) {
-          URL.revokeObjectURL(url);
+          URL.revokeObjectURL(prepared.sourceUrl);
           return;
         }
-        objectUrlsRef.current.push(url);
-        setSourceImage(url);
+        inferenceBlobRef.current = prepared.inferenceBlob;
+        objectUrlsRef.current.push(prepared.sourceUrl);
+        setSourceImage(prepared.sourceUrl);
       } catch (error) {
         if (!mountedRef.current) return;
         setProcessing({ status: "error", message: friendlyError(error) });
       }
     },
-    [revokeTrackedUrls]
+    [revokeTrackedUrls, terminateWorker]
   );
 
   const handleDrop = useCallback(
@@ -237,110 +306,78 @@ export default function BackgroundRemover() {
   useFilePaste(readFile, "image/*");
 
   const removeBackground = async () => {
-    if (!sourceImage) return;
+    if (!sourceImage || !inferenceBlobRef.current) return;
 
     try {
-      if (!pipelineRef.current) {
-        setProcessing({
-          status: "downloading",
-          message: "Downloading engine...",
-          progress: 0,
-        });
+      const worker = getWorker();
 
-        const { pipeline, env } = await import("@huggingface/transformers");
+      setProcessing({
+        status: "downloading",
+        message: "Initializing engine...",
+        progress: 0,
+      });
 
-        env.allowLocalModels = false;
-        // Disable Transformers.js Cache API — use the browser's HTTP cache
-        // instead; the Cache API is unreliable on iOS Safari.
-        env.useBrowserCache = false;
+      worker.onmessage = async (event: MessageEvent) => {
+        if (!mountedRef.current) return;
+        const data = event.data;
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const progressCallback = (event: any) => {
-          if (event.status === "progress" && event.progress !== undefined) {
+        if (data.type === "progress") {
+          setProcessing({
+            status: data.status,
+            message: data.message,
+            progress: data.progress,
+          });
+        } else if (data.type === "done") {
+          try {
             setProcessing({
-              status: "downloading",
-              message: "Downloading engine...",
-              progress: Math.round(event.progress),
+              status: "processing",
+              message: "Applying high-resolution mask...",
+            });
+
+            const finalImage = await applyMaskToImage(sourceImage, data.mask);
+            if (!mountedRef.current) {
+              URL.revokeObjectURL(finalImage.url);
+              return;
+            }
+
+            objectUrlsRef.current.push(finalImage.url);
+            setResultBlob(finalImage.blob);
+            setResultImage(finalImage.url);
+            setProcessing({ status: "done" });
+
+            // On mobile, terminate worker to immediately free all WASM heap memory
+            if (isMobileDevice()) {
+              terminateWorker();
+            }
+          } catch (error) {
+            setProcessing({
+              status: "error",
+              message: friendlyError(error),
             });
           }
-        };
-
-        // WebGPU gets fp16 (~88MB); everything else (all iOS browsers, most
-        // phones) gets the quantized WASM build (~44MB). fp32 on WASM is the
-        // default-crash: 176MB weights + fp32 runtime OOMs the mobile tab.
-        if ("gpu" in navigator) {
-          try {
-            pipelineRef.current = await pipeline(
-              "image-segmentation",
-              "briaai/RMBG-1.4",
-              {
-                device: "webgpu",
-                dtype: "fp16",
-                progress_callback: progressCallback,
-              }
-            );
-          } catch {
-            pipelineRef.current = null;
-          }
+        } else if (data.type === "error") {
+          if (!mountedRef.current) return;
+          setProcessing({
+            status: "error",
+            message: friendlyError(new Error(data.error)),
+          });
         }
-        if (!pipelineRef.current) {
-          try {
-            pipelineRef.current = await pipeline(
-              "image-segmentation",
-              "briaai/RMBG-1.4",
-              {
-                device: "wasm",
-                dtype: "q8",
-                progress_callback: progressCallback,
-              }
-            );
-          } catch {
-            throw new Error(
-              "Model download failed. Check your connection — and if you use Brave Shields or a content blocker, allow huggingface.co, then retry."
-            );
-          }
-        }
+      };
 
-        // Component unmounted while the model was downloading — free it and bail.
-        if (!mountedRef.current) {
-          pipelineRef.current?.dispose?.();
-          pipelineRef.current = null;
-          return;
-        }
-      }
+      worker.onerror = (err) => {
+        console.error("Worker error:", err);
+        if (!mountedRef.current) return;
+        setProcessing({
+          status: "error",
+          message: "An error occurred in the background processing worker.",
+        });
+      };
 
-      setProcessing({ status: "processing", message: "Removing background..." });
-
-      const result = await pipelineRef.current(sourceImage);
-
-      if (!mountedRef.current) return;
-
-      if (result && result.length > 0 && result[0].mask) {
-        const maskImage = result[0].mask;
-
-        const finalImage = await applyMaskToImage(sourceImage, maskImage);
-        if (!mountedRef.current) {
-          URL.revokeObjectURL(finalImage.url);
-          return;
-        }
-        objectUrlsRef.current.push(finalImage.url);
-        setResultBlob(finalImage.blob);
-        setResultImage(finalImage.url);
-        setProcessing({ status: "done" });
-
-        // On mobile, dispose the pipeline to free WASM heap memory (~44MB+)
-        // before the browser decodes and displays the final result <img />.
-        if (isMobileDevice() && pipelineRef.current?.dispose) {
-          try {
-            pipelineRef.current.dispose();
-          } catch {
-            // ignore
-          }
-          pipelineRef.current = null;
-        }
-      } else {
-        throw new Error("Processing failed");
-      }
+      worker.postMessage({
+        type: "process",
+        imageBlob: inferenceBlobRef.current,
+        preferWebGPU: support.hasWebGPU,
+      });
     } catch (error) {
       console.error("Background removal failed:", error);
       if (!mountedRef.current) return;
@@ -353,103 +390,59 @@ export default function BackgroundRemover() {
 
   const applyMaskToImage = async (
     imageUrl: string,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    maskImage: any
+    mask: {
+      data: Uint8ClampedArray;
+      width: number;
+      height: number;
+      channels?: number;
+    }
   ): Promise<{ url: string; blob: Blob }> => {
-    const canvas = canvasRef.current!;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+    const canvas = canvasRef.current || document.createElement("canvas");
+    const ctx = canvas.getContext("2d")!;
 
     const img = await loadImage(imageUrl);
 
+    // 1. Create a mask canvas matching the raw mask dimensions
+    const maskCanvas = document.createElement("canvas");
+    maskCanvas.width = mask.width;
+    maskCanvas.height = mask.height;
+    const maskCtx = maskCanvas.getContext("2d")!;
+    const maskImgData = maskCtx.createImageData(mask.width, mask.height);
+
+    const maskData = mask.data;
+    const channels = mask.channels || 1;
+    const totalPixels = mask.width * mask.height;
+
+    // Direct assignment to Alpha channel (index 3) so destination-in can use it
+    for (let p = 0; p < totalPixels; p++) {
+      maskImgData.data[p * 4 + 3] = maskData[p * channels];
+    }
+    maskCtx.putImageData(maskImgData, 0, 0);
+
+    // 2. High-resolution compositing canvas
     canvas.width = img.width;
     canvas.height = img.height;
 
-    ctx.drawImage(img, 0, 0);
-    let imageData: ImageData;
-    try {
-      imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    } catch {
-      throw new Error(
-        "Your device ran out of memory. Try a smaller photo or take a new one at a lower resolution."
-      );
-    }
+    // Draw full-resolution source image
+    ctx.drawImage(img, 0, 0, img.width, img.height);
 
-    if (
-      maskImage &&
-      maskImage.data &&
-      maskImage.width === img.width &&
-      maskImage.height === img.height
-    ) {
-      // Direct pixel buffer copy — zero extra canvas/image objects
-      const maskData = maskImage.data;
-      const channels = maskImage.channels || 1;
-      for (let i = 0; i < imageData.data.length; i += 4) {
-        const maskIdx = Math.floor(i / 4) * channels;
-        imageData.data[i + 3] = maskData[maskIdx];
-      }
-    } else {
-      // Fallback path when dimensions differ or mask is URL/Blob
-      let maskUrl = "";
-      let isBlobUrl = false;
+    // Composite mask with hardware bilinear interpolation
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.globalCompositeOperation = "destination-in";
+    ctx.drawImage(maskCanvas, 0, 0, img.width, img.height);
+    ctx.restore();
 
-      if (typeof maskImage === "string") {
-        maskUrl = maskImage;
-      } else if (maskImage instanceof Blob) {
-        maskUrl = URL.createObjectURL(maskImage);
-        isBlobUrl = true;
-      } else if (typeof maskImage?.toDataURL === "function") {
-        maskUrl = maskImage.toDataURL();
-      } else if (maskImage?.data) {
-        const tempCanvas = document.createElement("canvas");
-        tempCanvas.width = maskImage.width;
-        tempCanvas.height = maskImage.height;
-        const tempCtx = tempCanvas.getContext("2d")!;
-        const tempImgData = tempCtx.createImageData(
-          maskImage.width,
-          maskImage.height
-        );
-        const maskData = maskImage.data;
-        for (let i = 0; i < maskData.length; i++) {
-          const val = maskData[i];
-          tempImgData.data[i * 4] = val;
-          tempImgData.data[i * 4 + 1] = val;
-          tempImgData.data[i * 4 + 2] = val;
-          tempImgData.data[i * 4 + 3] = 255;
-        }
-        tempCtx.putImageData(tempImgData, 0, 0);
-        maskUrl = tempCanvas.toDataURL();
-        tempCanvas.width = 0;
-        tempCanvas.height = 0;
-      }
-
-      try {
-        const maskElement = await loadImage(maskUrl);
-        const maskCanvas = document.createElement("canvas");
-        maskCanvas.width = img.width;
-        maskCanvas.height = img.height;
-        const maskCtx = maskCanvas.getContext("2d", { willReadFrequently: true })!;
-        maskCtx.drawImage(maskElement, 0, 0, img.width, img.height);
-        const maskData = maskCtx.getImageData(0, 0, img.width, img.height);
-
-        for (let i = 0; i < imageData.data.length; i += 4) {
-          imageData.data[i + 3] = maskData.data[i];
-        }
-
-        // Release temporary canvas memory immediately
-        maskCanvas.width = 0;
-        maskCanvas.height = 0;
-      } finally {
-        if (isBlobUrl) URL.revokeObjectURL(maskUrl);
-      }
-    }
-
-    ctx.putImageData(imageData, 0, 0);
+    // Release temporary mask canvas
+    maskCanvas.width = 0;
+    maskCanvas.height = 0;
 
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob(resolve, "image/png")
     );
 
-    // Immediately zero out main canvas to release GPU texture memory
+    // Zero out main canvas to release GPU texture memory
     canvas.width = 0;
     canvas.height = 0;
 
@@ -474,6 +467,8 @@ export default function BackgroundRemover() {
   };
 
   const clearImage = () => {
+    terminateWorker();
+    inferenceBlobRef.current = null;
     revokeTrackedUrls();
     setSourceImage(null);
     setResultImage(null);
@@ -512,9 +507,7 @@ export default function BackgroundRemover() {
         <div className="flex items-start gap-2 rounded-lg border bg-muted/50 p-3">
           <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
           <p className="text-xs text-muted-foreground">
-            Mobile mode: uses the smaller ~44MB engine and downsizes photos to
-            1024px so it fits in your phone&apos;s memory. Desktop with WebGPU
-            gets higher resolution.
+            Mobile enhanced: offloads processing to a background worker to keep your phone responsive and outputs up to 2048px high-resolution images.
           </p>
         </div>
       )}
@@ -684,10 +677,9 @@ export default function BackgroundRemover() {
         <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <p className="text-xs text-muted-foreground">
           Processing happens entirely in your browser — your image never leaves
-          your device. On first use, a processing engine is downloaded (about
-          44MB on phones, 88MB with WebGPU) and cached for next time. Photos
-          are downsized before processing so phones don&apos;t run out of
-          memory.
+          your device. Operations run in a background worker to ensure
+          a smooth UI, and high-resolution output (up to 2048px on mobile) is generated via
+          mask upscaling without overloading device memory.
         </p>
       </div>
 
