@@ -128,20 +128,16 @@ function friendlyError(error: unknown): string {
   return message;
 }
 
-interface PreparedImages {
-  sourceUrl: string;
+interface PreparedPreview {
+  previewUrl: string;
   inferenceBlob: Blob;
-  width: number;
-  height: number;
 }
 
-// Prepare two images in a single pass:
-// 1. High-res source image (up to 2048px on mobile, 2560px on desktop)
-// 2. Downscaled inference thumbnail (max 800px) specifically for the ML model
-async function prepareImages(
-  file: File,
-  isMobile: boolean
-): Promise<PreparedImages> {
+// Generate a lightweight downscaled thumbnail (max 800px) specifically for UI preview
+// and ML inference. Keeps memory usage minimal during model download on mobile.
+async function preparePreviewAndInference(
+  file: File
+): Promise<PreparedPreview> {
   let bitmap: ImageBitmap;
   try {
     bitmap = await createImageBitmap(file, {
@@ -157,49 +153,33 @@ async function prepareImages(
     const origWidth = bitmap.width;
     const origHeight = bitmap.height;
 
-    // 1. High-resolution canvas for display and final output
-    const maxOutputSide = isMobile ? MOBILE_OUTPUT_MAX_SIDE : DESKTOP_OUTPUT_MAX_SIDE;
-    const outputScale = Math.min(1, maxOutputSide / Math.max(origWidth, origHeight));
-    const outputWidth = Math.max(1, Math.round(origWidth * outputScale));
-    const outputHeight = Math.max(1, Math.round(origHeight * outputScale));
-
-    const canvas = document.createElement("canvas");
-    canvas.width = outputWidth;
-    canvas.height = outputHeight;
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(bitmap, 0, 0, outputWidth, outputHeight);
-
-    const isPng = file.type === "image/png";
-    const sourceBlob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, isPng ? "image/png" : "image/jpeg", 0.95)
-    );
-    if (!sourceBlob) throw new Error("Could not read that image.");
-    const sourceUrl = URL.createObjectURL(sourceBlob);
-
-    // 2. Inference canvas (downscaled to 800px max side for fast & memory-safe ML inference)
+    // Single downscaled canvas for preview and ML inference (max 800px)
     const infScale = Math.min(1, INFERENCE_MAX_SIDE / Math.max(origWidth, origHeight));
     const infWidth = Math.max(1, Math.round(origWidth * infScale));
     const infHeight = Math.max(1, Math.round(origHeight * infScale));
 
+    const canvas = document.createElement("canvas");
     canvas.width = infWidth;
     canvas.height = infHeight;
+    const ctx = canvas.getContext("2d")!;
     ctx.drawImage(bitmap, 0, 0, infWidth, infHeight);
 
+    const isPng = file.type === "image/png";
     const inferenceBlob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/jpeg", 0.90)
+      canvas.toBlob(resolve, isPng ? "image/png" : "image/jpeg", 0.90)
     );
 
-    // Release canvas memory
+    // Release canvas memory immediately
     canvas.width = 0;
     canvas.height = 0;
 
     if (!inferenceBlob) throw new Error("Could not process image for engine.");
 
+    const previewUrl = URL.createObjectURL(inferenceBlob);
+
     return {
-      sourceUrl,
+      previewUrl,
       inferenceBlob,
-      width: outputWidth,
-      height: outputHeight,
     };
   } finally {
     bitmap.close();
@@ -222,6 +202,7 @@ export default function BackgroundRemover() {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const workerRef = useRef<Worker | null>(null);
+  const fileRef = useRef<File | null>(null);
   const inferenceBlobRef = useRef<Blob | null>(null);
   const [resultBlob, setResultBlob] = useState<Blob | null>(null);
   const mountedRef = useRef(true);
@@ -262,6 +243,7 @@ export default function BackgroundRemover() {
   const readFile = useCallback(
     async (file: File) => {
       terminateWorker();
+      fileRef.current = file;
       inferenceBlobRef.current = null;
       revokeTrackedUrls();
       setSourceImage(null);
@@ -269,14 +251,14 @@ export default function BackgroundRemover() {
       setResultBlob(null);
       setProcessing({ status: "idle" });
       try {
-        const prepared = await prepareImages(file, isMobileDevice());
+        const prepared = await preparePreviewAndInference(file);
         if (!mountedRef.current) {
-          URL.revokeObjectURL(prepared.sourceUrl);
+          URL.revokeObjectURL(prepared.previewUrl);
           return;
         }
         inferenceBlobRef.current = prepared.inferenceBlob;
-        objectUrlsRef.current.push(prepared.sourceUrl);
-        setSourceImage(prepared.sourceUrl);
+        objectUrlsRef.current.push(prepared.previewUrl);
+        setSourceImage(prepared.previewUrl);
       } catch (error) {
         if (!mountedRef.current) return;
         setProcessing({ status: "error", message: friendlyError(error) });
@@ -329,12 +311,24 @@ export default function BackgroundRemover() {
           });
         } else if (data.type === "done") {
           try {
+            // On mobile, terminate worker BEFORE high-res canvas compositing
+            // to immediately reclaim ~44MB+ WASM memory before allocating the 2048px canvas!
+            if (isMobileDevice()) {
+              terminateWorker();
+            }
+
             setProcessing({
               status: "processing",
               message: "Applying high-resolution mask...",
             });
 
-            const finalImage = await applyMaskToImage(sourceImage, data.mask);
+            const source = fileRef.current || sourceImage;
+            const finalImage = await applyMaskToSource(
+              source,
+              data.mask,
+              isMobileDevice()
+            );
+
             if (!mountedRef.current) {
               URL.revokeObjectURL(finalImage.url);
               return;
@@ -344,11 +338,6 @@ export default function BackgroundRemover() {
             setResultBlob(finalImage.blob);
             setResultImage(finalImage.url);
             setProcessing({ status: "done" });
-
-            // On mobile, terminate worker to immediately free all WASM heap memory
-            if (isMobileDevice()) {
-              terminateWorker();
-            }
           } catch (error) {
             setProcessing({
               status: "error",
@@ -388,19 +377,61 @@ export default function BackgroundRemover() {
     }
   };
 
-  const applyMaskToImage = async (
-    imageUrl: string,
+  const applyMaskToSource = async (
+    source: File | string,
     mask: {
       data: Uint8ClampedArray;
       width: number;
       height: number;
       channels?: number;
-    }
+    },
+    isMobile: boolean
   ): Promise<{ url: string; blob: Blob }> => {
     const canvas = canvasRef.current || document.createElement("canvas");
     const ctx = canvas.getContext("2d")!;
 
-    const img = await loadImage(imageUrl);
+    let imgWidth = 0;
+    let imgHeight = 0;
+
+    if (source instanceof File) {
+      let bitmap: ImageBitmap;
+      try {
+        bitmap = await createImageBitmap(source, {
+          imageOrientation: "from-image",
+        } as ImageBitmapOptions);
+      } catch {
+        throw new Error(
+          "Could not read that image. iPhone HEIC photos aren't supported — convert it to JPG or PNG first."
+        );
+      }
+
+      try {
+        const origWidth = bitmap.width;
+        const origHeight = bitmap.height;
+        const maxOutputSide = isMobile
+          ? MOBILE_OUTPUT_MAX_SIDE
+          : DESKTOP_OUTPUT_MAX_SIDE;
+        const outputScale = Math.min(
+          1,
+          maxOutputSide / Math.max(origWidth, origHeight)
+        );
+        imgWidth = Math.max(1, Math.round(origWidth * outputScale));
+        imgHeight = Math.max(1, Math.round(origHeight * outputScale));
+
+        canvas.width = imgWidth;
+        canvas.height = imgHeight;
+        ctx.drawImage(bitmap, 0, 0, imgWidth, imgHeight);
+      } finally {
+        bitmap.close();
+      }
+    } else {
+      const img = await loadImage(source);
+      imgWidth = img.width;
+      imgHeight = img.height;
+      canvas.width = imgWidth;
+      canvas.height = imgHeight;
+      ctx.drawImage(img, 0, 0, imgWidth, imgHeight);
+    }
 
     // 1. Create a mask canvas matching the raw mask dimensions
     const maskCanvas = document.createElement("canvas");
@@ -420,18 +451,11 @@ export default function BackgroundRemover() {
     maskCtx.putImageData(maskImgData, 0, 0);
 
     // 2. High-resolution compositing canvas
-    canvas.width = img.width;
-    canvas.height = img.height;
-
-    // Draw full-resolution source image
-    ctx.drawImage(img, 0, 0, img.width, img.height);
-
-    // Composite mask with hardware bilinear interpolation
     ctx.save();
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.globalCompositeOperation = "destination-in";
-    ctx.drawImage(maskCanvas, 0, 0, img.width, img.height);
+    ctx.drawImage(maskCanvas, 0, 0, imgWidth, imgHeight);
     ctx.restore();
 
     // Release temporary mask canvas
@@ -468,6 +492,7 @@ export default function BackgroundRemover() {
 
   const clearImage = () => {
     terminateWorker();
+    fileRef.current = null;
     inferenceBlobRef.current = null;
     revokeTrackedUrls();
     setSourceImage(null);
