@@ -9,13 +9,13 @@ import {
   Loader2,
   PenLine,
   Trash2,
-  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dropzone } from "@/components/tools/dropzone";
 import { ShareButton } from "@/components/tools/share-button";
 import { ToolNote } from "@/components/tools/tool-note";
 import { usePdfFile } from "@/hooks/use-pdf-file";
@@ -206,6 +206,8 @@ function SignatureUpload({
   onDone: (sig: Signature | null) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
+  const overDepth = useRef(0);
 
   const acceptFile = useCallback(
     (incoming: FileList | File[]) => {
@@ -234,13 +236,38 @@ function SignatureUpload({
   return (
     <div className="space-y-2">
       <div
+        role="button"
+        tabIndex={0}
+        aria-label="Upload a signature photo"
         onDrop={(e) => {
           e.preventDefault();
+          overDepth.current = 0;
+          setOver(false);
           acceptFile(e.dataTransfer.files);
         }}
+        onDragEnter={(e) => {
+          e.preventDefault();
+          overDepth.current += 1;
+          setOver(true);
+        }}
         onDragOver={(e) => e.preventDefault()}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          overDepth.current = Math.max(0, overDepth.current - 1);
+          if (overDepth.current === 0) setOver(false);
+        }}
         onClick={() => inputRef.current?.click()}
-        className="flex h-32 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-dashed bg-muted/50 text-sm text-muted-foreground transition-colors hover:bg-muted"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            inputRef.current?.click();
+          }
+        }}
+        className={`press flex h-32 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-dashed transition-colors focus-visible:outline-ring ${
+          over
+            ? "border-primary bg-primary/5 text-primary"
+            : "bg-muted/50 text-muted-foreground hover:bg-muted"
+        }`}
       >
         <input
           ref={inputRef}
@@ -288,7 +315,6 @@ export default function SignPdf() {
   const [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
 
   const previewRef = useRef<HTMLDivElement>(null); // canvas host — React never touches its children
-  const inputRef = useRef<HTMLInputElement>(null);
 
   // Drop per-file work when a different document is opened (render-time reset).
   const [prevFile, setPrevFile] = useState<File | null>(null);
@@ -543,35 +569,13 @@ export default function SignPdf() {
             </div>
           </>
         ) : (
-          <div
-            onDrop={(e) => {
-              e.preventDefault();
-              open(e.dataTransfer.files);
-            }}
-            onDragOver={(e) => e.preventDefault()}
-            onClick={() => inputRef.current?.click()}
-            className="m-4 cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors hover:border-muted-foreground/50 hover:bg-muted/50"
-          >
-            <input
-              ref={inputRef}
-              type="file"
-              accept="application/pdf,.pdf"
-              onChange={(e) => {
-                if (e.target.files) open(e.target.files);
-                e.target.value = "";
-              }}
-              className="hidden"
-            />
-            <Upload className="mx-auto mb-4 size-12 text-muted-foreground" />
-            <p className="text-lg font-medium">
-              {opening ? "Opening…" : "Drop a PDF here"}
-            </p>
-            {!opening && (
-              <p className="mt-1 text-sm text-muted-foreground">
-                or click to select a file
-              </p>
-            )}
-          </div>
+          <Dropzone
+            accept="application/pdf,.pdf"
+            onFiles={open}
+            title={opening ? "Opening…" : "Drop a PDF here"}
+            subtitle={opening ? undefined : "or click to select a file"}
+            disabled={opening}
+          />
         )}
       </div>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { AlertCircle, ArrowDown, ArrowUp, Image as ImageIcon, Loader2, Plus, Trash2, Upload, X } from "lucide-react";
+import { AlertCircle, ArrowDown, ArrowUp, Image as ImageIcon, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -15,6 +15,7 @@ import { downloadBlob } from "@/lib/download";
 import { createPdfDoc, imageFileToEmbeddable, pdfBlob } from "@/lib/pdf";
 import { ShareButton } from "@/components/tools/share-button";
 import { ToolNote } from "@/components/tools/tool-note";
+import { Dropzone } from "@/components/tools/dropzone";
 
 type PageSize = "fit" | "a4" | "letter";
 
@@ -33,7 +34,6 @@ export default function JpgToPdf() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
 
-  const inputRef = useRef<HTMLInputElement>(null);
   const addInputRef = useRef<HTMLInputElement>(null);
 
   const addImages = useCallback((incoming: FileList | File[]) => {
@@ -117,36 +117,13 @@ export default function JpgToPdf() {
   return (
     <div className="space-y-4">
       <div className="rounded-lg border bg-card">
-        <div
-          onDrop={(e) => {
-            e.preventDefault();
-            addImages(e.dataTransfer.files);
-          }}
-          onDragOver={(e) => e.preventDefault()}
-          onClick={() => inputRef.current?.click()}
-          className={`m-4 rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
-            images.length === 0
-              ? "cursor-pointer hover:border-muted-foreground/50 hover:bg-muted/50"
-              : ""
-          }`}
-        >
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
-            multiple
-            onChange={(e) => {
-              if (e.target.files) addImages(e.target.files);
-              e.target.value = "";
-            }}
-            className="hidden"
-          />
-          <Upload className="mx-auto mb-4 size-12 text-muted-foreground" />
-          <p className="text-lg font-medium">Drop images here</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            JPG, PNG or WebP — select several at once
-          </p>
-        </div>
+        <Dropzone
+          accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+          multiple
+          onFiles={addImages}
+          title="Drop images here"
+          subtitle="JPG, PNG or WebP — select several at once"
+        />
 
         {images.length > 0 && (
           <>

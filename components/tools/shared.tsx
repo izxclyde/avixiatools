@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -130,6 +130,7 @@ export function FormatterPanel({
   example,
   storageKey,
   renderOutput,
+  describe,
 }: {
   format: (input: string) => string | null;
   minify?: (input: string) => string | null;
@@ -137,12 +138,24 @@ export function FormatterPanel({
   example?: string;
   storageKey?: string;
   renderOutput?: (output: string, isMinified: boolean) => React.ReactNode;
+  describe?: (input: string) => string | null;
 }) {
   const [input, setInput] = usePersistedState<string>(storageKey ?? "", "");
   const [output, setOutput] = useState("");
   const [isMinified, setIsMinified] = useState(false);
   const [error, setError] = useState("");
   const [viewMode, setViewMode] = useState<"tree" | "raw">("tree");
+
+  const live = useMemo(() => {
+    if (!input.trim()) return { state: "idle" as const, text: "Waiting for input." };
+    const detail = describe?.(input);
+    if (detail !== undefined && detail !== null)
+      return { state: "valid" as const, text: detail };
+    const ok = format(input) !== null;
+    return ok
+      ? { state: "valid" as const, text: `${input.length} characters · valid syntax.` }
+      : { state: "invalid" as const, text: "Not valid yet — check for syntax errors." };
+  }, [input, format, describe]);
 
   const run = (fn: (s: string) => string | null, minifying = false) => {
     if (!input.trim()) {
@@ -157,6 +170,13 @@ export function FormatterPanel({
     } else {
       setOutput(result);
       setError("");
+      // Multimodal commit feedback (§13) — same frame as the visual update,
+      // meaningful moments only; silently skipped where unsupported.
+      try {
+        navigator.vibrate?.(10);
+      } catch {
+        // non-fatal
+      }
       setIsMinified(minifying);
       if (minifying) {
         setViewMode("raw");
@@ -176,7 +196,33 @@ export function FormatterPanel({
           onChange={(e) => setInput(e.target.value)}
           placeholder={placeholder}
           className="min-h-[200px] font-mono text-sm"
+          aria-describedby="formatter-status"
+          aria-invalid={live.state === "invalid"}
         />
+        <p
+          id="formatter-status"
+          role="status"
+          aria-live="polite"
+          className={`text-sm ${
+            live.state === "valid"
+              ? "text-muted-foreground"
+              : live.state === "invalid"
+                ? "text-destructive"
+                : "text-muted-foreground"
+          }`}
+        >
+          <span
+            aria-hidden="true"
+            className={`mr-1.5 inline-block h-2 w-2 rounded-full align-middle ${
+              live.state === "valid"
+                ? "bg-emerald-500"
+                : live.state === "invalid"
+                  ? "bg-destructive"
+                  : "bg-muted-foreground/40"
+            }`}
+          />
+          {live.state === "valid" ? `Valid · ${live.text}` : live.text}
+        </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Button onClick={() => run(format, false)}>Format</Button>

@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { AlertCircle, ArrowDown, ArrowUp, FileText, Loader2, Plus, Trash2, Upload, X } from "lucide-react";
+import { AlertCircle, ArrowDown, ArrowUp, FileText, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { downloadBlob } from "@/lib/download";
 import { baseName, checkPdfFile, outputName } from "@/lib/logic/pdf";
 import { createPdfDoc, loadPdfDoc, pdfBlob } from "@/lib/pdf";
+import { Dropzone } from "@/components/tools/dropzone";
 import { ShareButton } from "@/components/tools/share-button";
 
 export default function MergePdf() {
@@ -13,7 +14,6 @@ export default function MergePdf() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const inputRef = useRef<HTMLInputElement>(null);
   const listInputRef = useRef<HTMLInputElement>(null);
 
   const addFiles = useCallback((incoming: FileList | File[]) => {
@@ -81,32 +81,13 @@ export default function MergePdf() {
   return (
     <div className="space-y-4">
       <div className="rounded-lg border bg-card">
-        <div
-          onDrop={(e) => {
-            e.preventDefault();
-            addFiles(e.dataTransfer.files);
-          }}
-          onDragOver={(e) => e.preventDefault()}
-          onClick={() => inputRef.current?.click()}
-          className="m-4 cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors hover:border-muted-foreground/50 hover:bg-muted/50"
-        >
-          <input
-            ref={inputRef}
-            type="file"
-            accept="application/pdf,.pdf"
-            multiple
-            onChange={(e) => {
-              if (e.target.files) addFiles(e.target.files);
-              e.target.value = "";
-            }}
-            className="hidden"
-          />
-          <Upload className="mx-auto mb-4 size-12 text-muted-foreground" />
-          <p className="text-lg font-medium">Drop PDFs here</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            or click to select two or more files
-          </p>
-        </div>
+        <Dropzone
+          accept="application/pdf,.pdf"
+          multiple
+          onFiles={addFiles}
+          title="Drop PDFs here"
+          subtitle="or click to select two or more files"
+        />
 
         {files.length > 0 && (
           <ul className="border-t">

@@ -35,7 +35,7 @@ export default async function ToolPage({
   if (!Component) notFound();
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-5xl animate-in px-4 py-8 fade-in-0 duration-150 sm:px-6 lg:px-8">
       <Link
         href="/"
         className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -44,7 +44,7 @@ export default async function ToolPage({
         All tools
       </Link>
       <header className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+        <h1 className="display-tight text-2xl font-semibold tracking-tight sm:text-3xl">
           {tool.name}
         </h1>
         <p className="mt-1 text-muted-foreground">{tool.description}</p>

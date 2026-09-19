@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import { AlertCircle, Loader2, Trash2, Upload } from "lucide-react";
+import { useCallback, useState } from "react";
+import { AlertCircle, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { sanitizeWinAnsi, checkPdfFile, outputName } from "@/lib/logic/pdf";
 import { getPdfLib, loadPdfDoc, pdfBlob } from "@/lib/pdf";
+import { Dropzone } from "@/components/tools/dropzone";
 import { ShareButton } from "@/components/tools/share-button";
 import { downloadBlob } from "@/lib/download";
 
@@ -32,8 +33,6 @@ export default function WatermarkPdf() {
   const [error, setError] = useState<string | null>(null);
   const [warn, setWarn] = useState<string | null>(null);
   const [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
-
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const acceptFile = useCallback((incoming: FileList | File[]) => {
     const pdf = [...incoming].find(
@@ -139,30 +138,15 @@ export default function WatermarkPdf() {
   return (
     <div className="space-y-4">
       <div className="rounded-lg border bg-card">
-        <div
-          onDrop={(e) => {
-            e.preventDefault();
-            acceptFile(e.dataTransfer.files);
-          }}
-          onDragOver={(e) => e.preventDefault()}
-          onClick={() => !file && inputRef.current?.click()}
-          className={`m-4 rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
-            file
-              ? ""
-              : "cursor-pointer hover:border-muted-foreground/50 hover:bg-muted/50"
-          }`}
-        >
-          <input
-            ref={inputRef}
-            type="file"
-            accept="application/pdf,.pdf"
-            onChange={(e) => {
-              if (e.target.files) acceptFile(e.target.files);
-              e.target.value = "";
+        {file ? (
+          <div
+            onDrop={(e) => {
+              e.preventDefault();
+              acceptFile(e.dataTransfer.files);
             }}
-            className="hidden"
-          />
-          {file ? (
+            onDragOver={(e) => e.preventDefault()}
+            className="m-4 rounded-lg border-2 border-dashed p-8 text-center transition-colors"
+          >
             <div className="flex items-center justify-between gap-4">
               <p className="min-w-0 flex-1 truncate text-sm font-medium">{file.name}</p>
               <Button
@@ -177,14 +161,15 @@ export default function WatermarkPdf() {
                 Clear
               </Button>
             </div>
-          ) : (
-            <>
-              <Upload className="mx-auto mb-4 size-12 text-muted-foreground" />
-              <p className="text-lg font-medium">Drop a PDF here</p>
-              <p className="mt-1 text-sm text-muted-foreground">or click to select a file</p>
-            </>
-          )}
-        </div>
+          </div>
+        ) : (
+          <Dropzone
+            accept="application/pdf,.pdf"
+            onFiles={acceptFile}
+            title="Drop a PDF here"
+            subtitle="or click to select a file"
+          />
+        )}
 
         {file && (
           <div className="grid gap-x-6 gap-y-4 border-t p-4 sm:grid-cols-2">
