@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useRef, useEffect, useSyncExternalStore } from "react";
 import {
-  Upload,
   Download,
   Trash2,
   Loader2,
@@ -11,6 +10,7 @@ import {
   MonitorSmartphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dropzone } from "@/components/tools/dropzone";
 import { useFilePaste } from "@/hooks/use-file-paste";
 import { downloadBlob } from "@/lib/download";
 import { ShareButton } from "@/components/tools/share-button";
@@ -267,10 +267,9 @@ export default function BackgroundRemover() {
     [revokeTrackedUrls, terminateWorker]
   );
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      const file = e.dataTransfer.files[0];
+  const handleFiles = useCallback(
+    (incoming: FileList | File[]) => {
+      const file = [...incoming][0];
       if (file && file.type.startsWith("image/")) {
         void readFile(file);
       }
@@ -538,28 +537,12 @@ export default function BackgroundRemover() {
       )}
       <div className="rounded-lg border bg-card">
         {!sourceImage ? (
-          <div
-            onDrop={handleDrop}
-            onDragOver={(e) => e.preventDefault()}
-            className="m-4 cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors hover:border-muted-foreground/50 hover:bg-muted/50"
-            onClick={() =>
-              document.getElementById("bg-remover-input")?.click()
-            }
-          >
-            <input
-              id="bg-remover-input"
-              type="file"
-              accept="image/*"
-              onChange={handleFileSelect}
-              className="hidden"
-            />
-            <Upload className="mx-auto mb-4 size-12 text-muted-foreground" />
-            <p className="text-lg font-medium">Drop an image here</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              or click to select a file, or paste (JPG/PNG — HEIC isn&apos;t
-              supported)
-            </p>
-          </div>
+          <Dropzone
+            accept="image/*"
+            onFiles={handleFiles}
+            title="Drop an image here"
+            subtitle="or click to select a file, or paste (JPG/PNG — HEIC isn't supported)"
+          />
         ) : !resultImage ? (
           <div>
             <div className="flex items-center justify-between p-4">

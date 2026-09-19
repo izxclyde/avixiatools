@@ -8,7 +8,7 @@ export default function Home() {
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
       <header className="mb-10 lg:mt-6">
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+        <h1 className="display-tight text-3xl font-semibold tracking-tight sm:text-4xl">
           avixiatools
         </h1>
         <p className="mt-2 max-w-2xl text-muted-foreground">
@@ -16,7 +16,8 @@ export default function Home() {
           Everything runs in your browser — no logins, no tracking, no data
           leaves your machine.
         </p>
-        <div className="mt-5">
+        {/* Frosted sticky search — translucent chrome, content scrolls under (§12) */}
+        <div className="apple-chrome sticky top-0 z-20 -mx-4 mt-5 px-4 py-3 sm:-mx-6 sm:px-6">
           <SearchTrigger />
         </div>
       </header>
@@ -40,7 +41,7 @@ export default function Home() {
                     href={`/tools/${tool.slug}`}
                     className="focus-visible:outline-none"
                   >
-                    <Card className="group h-full transition-colors hover:border-primary/50 focus-visible:ring-3 focus-visible:ring-ring/50">
+                    <Card className="group press h-full transition-all hover:border-primary/50 hover:shadow-[0_12px_28px_-18px_var(--foreground)] focus-visible:ring-3 focus-visible:ring-ring/50">
                       <CardContent className="flex h-full flex-col justify-between gap-3 p-4">
                         <div>
                           <h3 className="font-medium">{tool.name}</h3>

@@ -109,7 +109,7 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r bg-sidebar lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r apple-chrome lg:flex">
         <SidebarBody query={query} setQuery={setQuery} />
       </aside>
 

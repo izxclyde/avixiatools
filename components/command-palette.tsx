@@ -22,8 +22,12 @@ export function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const results = useMemo(() => searchTools(query), [query]);
+  const lastTrigger = useRef<HTMLElement | null>(null);
 
-  const close = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => {
+    setOpen(false);
+    lastTrigger.current?.focus?.();
+  }, []);
   const go = useCallback(
     (slug: string) => {
       close();
@@ -33,10 +37,20 @@ export function CommandPalette() {
   );
 
   useEffect(() => {
-    const onOpen = () => setOpen(true);
+    const onOpen = () => {
+      lastTrigger.current =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
+      setOpen(true);
+    };
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
+        lastTrigger.current =
+          document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
         setOpen((o) => !o);
       }
       if (e.key === "Escape") setOpen(false);
@@ -51,9 +65,17 @@ export function CommandPalette() {
 
   const handleOpenChange = (next: boolean) => {
     if (next) {
+      if (!(document.activeElement instanceof HTMLInputElement)) {
+        lastTrigger.current =
+          document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+      }
       setQuery("");
       setActive(0);
       setTimeout(() => inputRef.current?.focus(), 0);
+    } else {
+      lastTrigger.current?.focus?.();
     }
     setOpen(next);
   };
@@ -62,7 +84,7 @@ export function CommandPalette() {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="gap-0 overflow-hidden p-0 sm:max-w-lg"
+        className="materialize gap-0 overflow-hidden p-0 sm:max-w-lg"
       >
         <DialogTitle className="sr-only">Search tools</DialogTitle>
         <div className="flex items-center gap-2 border-b px-3">

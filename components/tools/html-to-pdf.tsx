@@ -26,6 +26,8 @@ export default function HtmlToPdf() {
   const [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
+  const overDepth = useRef(0);
 
   const acceptFile = useCallback((incoming: FileList | File[]) => {
     const file = [...incoming].find(
@@ -82,13 +84,36 @@ export default function HtmlToPdf() {
 
         <div className="flex flex-wrap items-center gap-3 border-t p-4">
           <div
+            role="button"
+            tabIndex={0}
+            aria-label="Upload an HTML file"
             onDrop={(e) => {
               e.preventDefault();
+              overDepth.current = 0;
+              setOver(false);
               acceptFile(e.dataTransfer.files);
             }}
+            onDragEnter={(e) => {
+              e.preventDefault();
+              overDepth.current += 1;
+              setOver(true);
+            }}
             onDragOver={(e) => e.preventDefault()}
+            onDragLeave={(e) => {
+              e.preventDefault();
+              overDepth.current = Math.max(0, overDepth.current - 1);
+              if (overDepth.current === 0) setOver(false);
+            }}
             onClick={() => inputRef.current?.click()}
-            className="flex flex-1 cursor-pointer items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                inputRef.current?.click();
+              }
+            }}
+            className={`press flex flex-1 cursor-pointer items-center gap-2 text-sm transition-colors hover:text-foreground focus-visible:outline-ring ${
+              over ? "text-primary" : "text-muted-foreground"
+            }`}
           >
             <input
               ref={inputRef}

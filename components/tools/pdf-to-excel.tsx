@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { AlertCircle, Loader2, Upload } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dropzone } from "@/components/tools/dropzone";
 import { ShareButton } from "@/components/tools/share-button";
 import { ToolNote } from "@/components/tools/tool-note";
 import { usePdfFile } from "@/hooks/use-pdf-file";
@@ -18,7 +19,6 @@ export default function PdfToExcel() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
 
-  const inputRef = useRef<HTMLInputElement>(null);
   const cancelRef = useRef(false);
 
   const convert = async () => {
@@ -130,35 +130,13 @@ export default function PdfToExcel() {
             </div>
           </>
         ) : (
-          <div
-            onDrop={(e) => {
-              e.preventDefault();
-              open(e.dataTransfer.files);
-            }}
-            onDragOver={(e) => e.preventDefault()}
-            onClick={() => inputRef.current?.click()}
-            className="m-4 cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors hover:border-muted-foreground/50 hover:bg-muted/50"
-          >
-            <input
-              ref={inputRef}
-              type="file"
-              accept="application/pdf,.pdf"
-              onChange={(e) => {
-                if (e.target.files) open(e.target.files);
-                e.target.value = "";
-              }}
-              className="hidden"
-            />
-            <Upload className="mx-auto mb-4 size-12 text-muted-foreground" />
-            <p className="text-lg font-medium">
-              {opening ? "Opening…" : "Drop a PDF here"}
-            </p>
-            {!opening && (
-              <p className="mt-1 text-sm text-muted-foreground">
-                or click to select a file
-              </p>
-            )}
-          </div>
+          <Dropzone
+            accept="application/pdf,.pdf"
+            onFiles={open}
+            title={opening ? "Opening…" : "Drop a PDF here"}
+            subtitle={opening ? undefined : "or click to select a file"}
+            disabled={opening}
+          />
         )}
       </div>
 
