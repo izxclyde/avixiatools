@@ -6,6 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { CopyButton } from "@/components/copy-button";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Maximize2 } from "lucide-react";
 
 // State that survives reloads, per tool.
 export function usePersistedState<T>(key: string, initial: T) {
@@ -145,6 +151,7 @@ export function FormatterPanel({
   const [isMinified, setIsMinified] = useState(false);
   const [error, setError] = useState("");
   const [viewMode, setViewMode] = useState<"tree" | "raw">("tree");
+  const [fullscreen, setFullscreen] = useState(false);
 
   const live = useMemo(() => {
     if (!input.trim()) return { state: "idle" as const, text: "Waiting for input." };
@@ -186,122 +193,192 @@ export function FormatterPanel({
     }
   };
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="grid gap-1.5">
-        <Label htmlFor="formatter-input">Input</Label>
-        <Textarea
-          id="formatter-input"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={placeholder}
-          className="min-h-[200px] font-mono text-sm"
-          aria-describedby="formatter-status"
-          aria-invalid={live.state === "invalid"}
-        />
-        <p
-          id="formatter-status"
-          role="status"
-          aria-live="polite"
-          className={`text-sm ${
-            live.state === "valid"
-              ? "text-muted-foreground"
-              : live.state === "invalid"
-                ? "text-destructive"
-                : "text-muted-foreground"
-          }`}
-        >
-          <span
-            aria-hidden="true"
-            className={`mr-1.5 inline-block h-2 w-2 rounded-full align-middle ${
-              live.state === "valid"
-                ? "bg-emerald-500"
-                : live.state === "invalid"
-                  ? "bg-destructive"
-                  : "bg-muted-foreground/40"
-            }`}
+  // Shared output content used in both the inline panel and the fullscreen dialog.
+  const outputContent = (
+    <>
+      {renderOutput && viewMode === "tree" ? (
+        renderOutput(output, isMinified) ?? (
+          <Textarea
+            id="formatter-output"
+            readOnly
+            value={output}
+            className="h-full min-h-[200px] font-mono text-sm"
           />
-          {live.state === "valid" ? `Valid · ${live.text}` : live.text}
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={() => run(format, false)}>Format</Button>
-        {minify && (
-          <Button variant="outline" onClick={() => run(minify, true)}>
-            Minify
+        )
+      ) : (
+        <Textarea
+          id="formatter-output"
+          readOnly
+          value={output}
+          className="h-full min-h-[200px] font-mono text-sm"
+        />
+      )}
+    </>
+  );
+
+  // View-mode toggle strip (shared between inline and dialog header).
+  const viewToggle = renderOutput && (
+    <div className="flex items-center gap-1 rounded-md border bg-muted/40 p-0.5 text-xs">
+      <button
+        type="button"
+        onClick={() => setViewMode("tree")}
+        className={`rounded px-2.5 py-1 font-medium transition-colors ${
+          viewMode === "tree"
+            ? "bg-background text-foreground shadow-xs"
+            : "text-muted-foreground hover:text-foreground"
+        }`}
+        aria-pressed={viewMode === "tree"}
+      >
+        Interactive Tree
+      </button>
+      <button
+        type="button"
+        onClick={() => setViewMode("raw")}
+        className={`rounded px-2.5 py-1 font-medium transition-colors ${
+          viewMode === "raw"
+            ? "bg-background text-foreground shadow-xs"
+            : "text-muted-foreground hover:text-foreground"
+        }`}
+        aria-pressed={viewMode === "raw"}
+      >
+        Raw Text
+      </button>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Responsive grid: single column on mobile, three-column (input | buttons | output) on lg+ */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_auto_1fr]">
+
+        {/* ── Left: Input ── */}
+        <div className="grid gap-1.5">
+          <Label htmlFor="formatter-input">Input</Label>
+          <Textarea
+            id="formatter-input"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={placeholder}
+            className="min-h-[400px] font-mono text-sm lg:min-h-[500px]"
+            aria-describedby="formatter-status"
+            aria-invalid={live.state === "invalid"}
+          />
+          <p
+            id="formatter-status"
+            role="status"
+            aria-live="polite"
+            className={`text-sm ${
+              live.state === "invalid" ? "text-destructive" : "text-muted-foreground"
+            }`}
+          >
+            <span
+              aria-hidden="true"
+              className={`mr-1.5 inline-block h-2 w-2 rounded-full align-middle ${
+                live.state === "valid"
+                  ? "bg-emerald-500"
+                  : live.state === "invalid"
+                    ? "bg-destructive"
+                    : "bg-muted-foreground/40"
+              }`}
+            />
+            {live.state === "valid" ? `Valid · ${live.text}` : live.text}
+          </p>
+        </div>
+
+        {/* ── Centre: Action buttons ── */}
+        <div className="flex flex-wrap items-center justify-center gap-2 lg:flex-col lg:justify-center">
+          <Button className="w-full lg:w-auto" onClick={() => run(format, false)}>
+            Format
           </Button>
-        )}
-        {example && (
-          <Button variant="ghost" onClick={() => setInput(example)}>
-            Try an example
+          {minify && (
+            <Button
+              variant="outline"
+              className="w-full lg:w-auto"
+              onClick={() => run(minify, true)}
+            >
+              Minify
+            </Button>
+          )}
+          {example && (
+            <Button
+              variant="ghost"
+              className="w-full lg:w-auto"
+              onClick={() => setInput(example)}
+            >
+              Sample
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            className="w-full lg:w-auto"
+            onClick={() => {
+              setInput("");
+              setOutput("");
+              setError("");
+            }}
+          >
+            Clear
           </Button>
-        )}
-        <Button
-          variant="ghost"
-          onClick={() => {
-            setInput("");
-            setOutput("");
-            setError("");
-          }}
-        >
-          Clear
-        </Button>
-        {output && <CopyButton value={output} />}
-      </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      {output && (
-        <div className="grid gap-2">
-          <div className="flex items-center justify-between">
+        </div>
+
+        {/* ── Right: Output ── */}
+        <div className="grid gap-1.5">
+          {/* Output header row */}
+          <div className="flex items-center justify-between gap-2">
             <Label htmlFor="formatter-output">Output</Label>
-            {renderOutput && (
-              <div className="flex items-center gap-1 rounded-md border bg-muted/40 p-0.5 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setViewMode("tree")}
-                  className={`rounded px-2.5 py-1 font-medium transition-colors ${
-                    viewMode === "tree"
-                      ? "bg-background text-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                  aria-pressed={viewMode === "tree"}
+            {output && (
+              <div className="flex items-center gap-2">
+                {viewToggle}
+                <CopyButton value={output} />
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  title="Expand to full screen"
+                  aria-label="Expand output to full screen"
+                  onClick={() => setFullscreen(true)}
                 >
-                  Interactive Tree
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode("raw")}
-                  className={`rounded px-2.5 py-1 font-medium transition-colors ${
-                    viewMode === "raw"
-                      ? "bg-background text-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                  aria-pressed={viewMode === "raw"}
-                >
-                  Raw Text
-                </button>
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
               </div>
             )}
           </div>
 
-          {renderOutput && viewMode === "tree" ? (
-            renderOutput(output, isMinified) ?? (
-              <Textarea
-                id="formatter-output"
-                readOnly
-                value={output}
-                className="min-h-[200px] font-mono text-sm"
-              />
-            )
+          {/* Error message */}
+          {error && <p className="text-sm text-destructive">{error}</p>}
+
+          {/* Output content or empty placeholder */}
+          {output ? (
+            outputContent
           ) : (
-            <Textarea
-              id="formatter-output"
-              readOnly
-              value={output}
-              className="min-h-[200px] font-mono text-sm"
-            />
+            <div className="flex min-h-[400px] items-center justify-center rounded-md border border-dashed bg-muted/20 lg:min-h-[500px]">
+              <p className="text-sm text-muted-foreground">
+                Formatted output will appear here.
+              </p>
+            </div>
           )}
         </div>
-      )}
-    </div>
+      </div>
+
+      {/* Full-screen dialog */}
+      <Dialog open={fullscreen} onOpenChange={setFullscreen}>
+        <DialogContent
+          className="flex h-[90vh] w-[95vw] max-w-[95vw] flex-col gap-3 overflow-hidden"
+          showCloseButton
+        >
+          {/* sr-only title for a11y */}
+          <DialogTitle className="sr-only">Output — full screen</DialogTitle>
+          <div className="flex flex-shrink-0 items-center justify-between gap-2">
+            <span className="text-sm font-medium">Output</span>
+            <div className="flex items-center gap-2">
+              {viewToggle}
+              <CopyButton value={output} />
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto">
+            {outputContent}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
