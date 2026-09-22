@@ -247,8 +247,8 @@ export function FormatterPanel({
 
   return (
     <>
-      {/* Single column on mobile, input | buttons | output on lg+ */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_auto_1fr]">
+      {/* Single column below xl, input | buttons | output at xl+ (panes too narrow for 3-col at lg) */}
+      <div className="grid max-w-full grid-cols-1 gap-4 overflow-x-clip xl:grid-cols-[1fr_auto_1fr]">
         {/* Left: Input */}
         <div className="grid min-w-0 gap-1.5 content-start">
           <Label htmlFor="formatter-input">Input</Label>
@@ -258,7 +258,7 @@ export function FormatterPanel({
             onChange={(e) => setInput(e.target.value)}
             placeholder={placeholder}
             wrap="off"
-            className="max-h-[600px] min-h-[400px] overflow-x-auto overflow-y-auto font-mono text-sm whitespace-pre lg:min-h-[500px]"
+            className="max-h-[600px] min-h-[400px] overflow-x-auto overflow-y-auto font-mono text-sm whitespace-pre xl:min-h-[500px]"
             aria-describedby="formatter-status"
             aria-invalid={live.state === "invalid"}
           />
@@ -285,14 +285,14 @@ export function FormatterPanel({
         </div>
 
         {/* Centre: actions between the two panes */}
-        <div className="flex flex-wrap items-center justify-center gap-2 lg:flex-col lg:justify-center">
-          <Button className="w-full lg:w-auto" onClick={() => run(format, false)}>
+        <div className="flex min-w-0 flex-wrap items-center justify-center gap-2 xl:flex-col xl:justify-center">
+          <Button className="w-full xl:w-auto" onClick={() => run(format, false)}>
             Format
           </Button>
           {minify && (
             <Button
               variant="outline"
-              className="w-full lg:w-auto"
+              className="w-full xl:w-auto"
               onClick={() => run(minify, true)}
             >
               Minify
@@ -301,7 +301,7 @@ export function FormatterPanel({
           {example && (
             <Button
               variant="ghost"
-              className="w-full lg:w-auto"
+              className="w-full xl:w-auto"
               onClick={() => setInput(example)}
             >
               Sample
@@ -309,7 +309,7 @@ export function FormatterPanel({
           )}
           <Button
             variant="ghost"
-            className="w-full lg:w-auto"
+            className="w-full xl:w-auto"
             onClick={() => {
               setInput("");
               setOutput("");
@@ -322,10 +322,10 @@ export function FormatterPanel({
 
         {/* Right: Output */}
         <div className="grid min-w-0 gap-1.5 content-start">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
             <Label htmlFor="formatter-output">Output</Label>
             {output && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {viewToggle}
                 <CopyButton value={output} />
                 <Button
@@ -346,7 +346,7 @@ export function FormatterPanel({
           {output ? (
             renderOutputBlock("formatter-output")
           ) : (
-            <div className="flex min-h-[400px] items-center justify-center rounded-md border border-dashed bg-muted/20 lg:min-h-[500px]">
+            <div className="flex min-h-[400px] items-center justify-center rounded-md border border-dashed bg-muted/20 xl:min-h-[500px]">
               <p className="text-sm text-muted-foreground">
                 Formatted output will appear here.
               </p>

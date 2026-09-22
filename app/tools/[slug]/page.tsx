@@ -35,7 +35,7 @@ export default async function ToolPage({
   if (!Component) notFound();
 
   return (
-    <div className="mx-auto w-full max-w-5xl animate-in px-4 py-8 fade-in-0 duration-150 sm:px-6 lg:px-8">
+    <div className="w-full animate-in px-4 py-8 fade-in-0 duration-150 sm:px-6 lg:px-6">
       <Link
         href="/"
         className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
