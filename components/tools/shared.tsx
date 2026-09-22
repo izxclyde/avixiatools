@@ -294,7 +294,7 @@ export function FormatterPanel({
                 id="formatter-output"
                 readOnly
                 value={output}
-                className="min-h-[200px] font-mono text-sm"
+                className="min-h-[200px] font-mono text-sm whitespace-pre-wrap break-all overflow-x-hidden"
               />
             )
           ) : (
@@ -302,7 +302,7 @@ export function FormatterPanel({
               id="formatter-output"
               readOnly
               value={output}
-              className="min-h-[200px] font-mono text-sm"
+              className="min-h-[200px] font-mono text-sm whitespace-pre-wrap break-all overflow-x-hidden"
             />
           )}
         </div>

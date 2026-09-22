@@ -17,6 +17,9 @@ import {
 } from "@/lib/logic/format";
 import { useCopy } from "@/hooks/use-copy";
 
+/** Strings longer than this are truncated in the tree view. */
+const MAX_INLINE = 80;
+
 interface JsonTreeViewProps {
   tree: JsonNode;
   rawJson: string;
@@ -114,8 +117,9 @@ export function JsonTreeView({ tree, rawJson }: JsonTreeViewProps) {
         </div>
       </div>
 
+      {/* overflow-x-hidden on the wrapper; rows are w-full so they never push past it */}
       <div
-        className="max-h-[600px] overflow-auto p-3 font-mono text-xs leading-relaxed sm:text-sm"
+        className="max-h-[600px] overflow-y-auto overflow-x-hidden p-3 font-mono text-xs leading-relaxed sm:text-sm"
         role="tree"
         aria-label="JSON structure"
       >
@@ -183,24 +187,31 @@ function JsonNodeRenderer({
 
     return (
       <div
-        className="group tree-node-row relative flex min-w-max items-center justify-between rounded px-1.5 py-0.5"
+        className="group tree-node-row relative flex w-full items-start justify-between rounded px-1.5 py-0.5"
         data-active={isActive}
         onClick={() => setActivePath(isActive ? null : path)}
       >
-        <div className="flex items-center" style={{ paddingLeft: indentPadding }}>
-          <span className="inline-block w-4" />
+        {/* Content — flex-1 + min-w-0 so it shrinks and wraps instead of overflowing */}
+        <div
+          className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1"
+          style={{ paddingLeft: indentPadding }}
+        >
+          <span className="inline-block w-4 shrink-0" />
           {keyName !== null && (
             <>
-              <span className="code-key">&quot;{keyName}&quot;</span>
-              <span className="code-punctuation mr-1.5">:</span>
+              <span className="code-key shrink-0">&quot;{keyName}&quot;</span>
+              <span className="code-punctuation mr-1 shrink-0">:</span>
             </>
           )}
           <PrimitiveValueSpan node={node} />
           {!isLast && <span className="code-punctuation">,</span>}
         </div>
 
-        <div className="ml-4 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 data-[visible=true]:opacity-100"
-             data-visible={isActive}>
+        {/* Copy buttons — sticky to the right so they don't cause horizontal scroll */}
+        <div
+          className="sticky right-0 ml-2 flex shrink-0 items-center gap-1 self-start opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 data-[visible=true]:opacity-100"
+          data-visible={isActive}
+        >
           {keyName !== null && (
             <Button
               variant="ghost"
@@ -266,14 +277,14 @@ function JsonNodeRenderer({
     return (
       <div className="flex flex-col">
         <div
-          className="group tree-node-row relative flex min-w-max items-center justify-between rounded px-1.5 py-0.5"
+          className="group tree-node-row relative flex w-full items-center justify-between rounded px-1.5 py-0.5"
           data-active={isActive}
           onClick={() => setActivePath(isActive ? null : path)}
         >
-          <div className="flex items-center" style={{ paddingLeft: indentPadding }}>
+          <div className="flex min-w-0 flex-1 items-center" style={{ paddingLeft: indentPadding }}>
             <button
               type="button"
-              className="mr-0.5 flex h-4 w-4 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+              className="mr-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
               onClick={(e) => {
                 e.stopPropagation();
                 toggleCollapse(path);
@@ -290,12 +301,12 @@ function JsonNodeRenderer({
 
             {keyName !== null && (
               <>
-                <span className="code-key">&quot;{keyName}&quot;</span>
-                <span className="code-punctuation mr-1.5">:</span>
+                <span className="code-key shrink-0">&quot;{keyName}&quot;</span>
+                <span className="code-punctuation mr-1.5 shrink-0">:</span>
               </>
             )}
 
-            <span className="code-punctuation">&#123;</span>
+            <span className="code-punctuation shrink-0">&#123;</span>
 
             {isCollapsed && (
               <button
@@ -304,7 +315,7 @@ function JsonNodeRenderer({
                   e.stopPropagation();
                   toggleCollapse(path);
                 }}
-                className="mx-1 rounded bg-muted px-1.5 py-0.2 text-[11px] text-muted-foreground hover:text-foreground"
+                className="mx-1 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
               >
                 ... {count} {count === 1 ? "property" : "properties"}
               </button>
@@ -312,14 +323,14 @@ function JsonNodeRenderer({
 
             {isCollapsed && (
               <>
-                <span className="code-punctuation">&#125;</span>
+                <span className="code-punctuation shrink-0">&#125;</span>
                 {!isLast && <span className="code-punctuation">,</span>}
               </>
             )}
           </div>
 
           <div
-            className="ml-4 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 data-[visible=true]:opacity-100"
+            className="sticky right-0 ml-2 flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 data-[visible=true]:opacity-100"
             data-visible={isActive}
           >
             {keyName !== null && (
@@ -395,10 +406,10 @@ function JsonNodeRenderer({
             ))}
 
             <div
-              className="tree-node-row flex min-w-max items-center rounded px-1.5 py-0.5"
+              className="tree-node-row flex w-full items-center rounded px-1.5 py-0.5"
               style={{ paddingLeft: indentPadding }}
             >
-              <span className="inline-block w-4" />
+              <span className="inline-block w-4 shrink-0" />
               <span className="code-punctuation">&#125;</span>
               {!isLast && <span className="code-punctuation">,</span>}
             </div>
@@ -419,14 +430,14 @@ function JsonNodeRenderer({
     return (
       <div className="flex flex-col">
         <div
-          className="group tree-node-row relative flex min-w-max items-center justify-between rounded px-1.5 py-0.5"
+          className="group tree-node-row relative flex w-full items-center justify-between rounded px-1.5 py-0.5"
           data-active={isActive}
           onClick={() => setActivePath(isActive ? null : path)}
         >
-          <div className="flex items-center" style={{ paddingLeft: indentPadding }}>
+          <div className="flex min-w-0 flex-1 items-center" style={{ paddingLeft: indentPadding }}>
             <button
               type="button"
-              className="mr-0.5 flex h-4 w-4 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+              className="mr-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
               onClick={(e) => {
                 e.stopPropagation();
                 toggleCollapse(path);
@@ -443,12 +454,12 @@ function JsonNodeRenderer({
 
             {keyName !== null && (
               <>
-                <span className="code-key">&quot;{keyName}&quot;</span>
-                <span className="code-punctuation mr-1.5">:</span>
+                <span className="code-key shrink-0">&quot;{keyName}&quot;</span>
+                <span className="code-punctuation mr-1.5 shrink-0">:</span>
               </>
             )}
 
-            <span className="code-punctuation">&#91;</span>
+            <span className="code-punctuation shrink-0">&#91;</span>
 
             {isCollapsed && (
               <button
@@ -457,7 +468,7 @@ function JsonNodeRenderer({
                   e.stopPropagation();
                   toggleCollapse(path);
                 }}
-                className="mx-1 rounded bg-muted px-1.5 py-0.2 text-[11px] text-muted-foreground hover:text-foreground"
+                className="mx-1 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
               >
                 ... {count} {count === 1 ? "item" : "items"}
               </button>
@@ -465,14 +476,14 @@ function JsonNodeRenderer({
 
             {isCollapsed && (
               <>
-                <span className="code-punctuation">&#93;</span>
+                <span className="code-punctuation shrink-0">&#93;</span>
                 {!isLast && <span className="code-punctuation">,</span>}
               </>
             )}
           </div>
 
           <div
-            className="ml-4 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 data-[visible=true]:opacity-100"
+            className="sticky right-0 ml-2 flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 data-[visible=true]:opacity-100"
             data-visible={isActive}
           >
             {keyName !== null && (
@@ -548,10 +559,10 @@ function JsonNodeRenderer({
             ))}
 
             <div
-              className="tree-node-row flex min-w-max items-center rounded px-1.5 py-0.5"
+              className="tree-node-row flex w-full items-center rounded px-1.5 py-0.5"
               style={{ paddingLeft: indentPadding }}
             >
-              <span className="inline-block w-4" />
+              <span className="inline-block w-4 shrink-0" />
               <span className="code-punctuation">&#93;</span>
               {!isLast && <span className="code-punctuation">,</span>}
             </div>
@@ -564,7 +575,13 @@ function JsonNodeRenderer({
   return null;
 }
 
+/**
+ * Renders a primitive JSON value. Strings longer than MAX_INLINE chars are
+ * truncated with a "Show full value" toggle so they don't push the layout wide.
+ */
 function PrimitiveValueSpan({ node }: { node: { kind: "primitive"; value: unknown; raw: string } }) {
+  const [expanded, setExpanded] = useState(false);
+
   if (node.value === null) {
     return <span className="code-null">null</span>;
   }
@@ -574,6 +591,27 @@ function PrimitiveValueSpan({ node }: { node: { kind: "primitive"; value: unknow
   if (typeof node.value === "number") {
     return <span className="code-number">{node.value}</span>;
   }
-  return <span className="code-string">{JSON.stringify(node.value)}</span>;
-}
 
+  // String — apply truncation for long values
+  const display = JSON.stringify(node.value) as string;
+  if (display.length > MAX_INLINE) {
+    return (
+      <span className="code-string min-w-0 break-all">
+        {expanded ? display : `${display.slice(0, MAX_INLINE)}…`}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded((v) => !v);
+          }}
+          className="ml-1.5 inline rounded bg-muted px-1 py-0.5 text-[10px] font-sans text-muted-foreground hover:text-foreground"
+          title={expanded ? "Collapse value" : "Show full value"}
+        >
+          {expanded ? "Hide" : "Show full"}
+        </button>
+      </span>
+    );
+  }
+
+  return <span className="code-string">{display}</span>;
+}

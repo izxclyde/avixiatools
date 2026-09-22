@@ -17,6 +17,9 @@ import {
 } from "@/lib/logic/format";
 import { useCopy } from "@/hooks/use-copy";
 
+/** Attribute values / text content longer than this are truncated. */
+const MAX_INLINE = 80;
+
 interface XmlTreeViewProps {
   nodes: XmlNode[];
   rawXml: string;
@@ -113,8 +116,9 @@ export function XmlTreeView({ nodes, rawXml }: XmlTreeViewProps) {
         </div>
       </div>
 
+      {/* overflow-x-hidden prevents any row from widening the page */}
       <div
-        className="max-h-[600px] overflow-auto p-3 font-mono text-xs leading-relaxed sm:text-sm"
+        className="max-h-[600px] overflow-y-auto overflow-x-hidden p-3 font-mono text-xs leading-relaxed sm:text-sm"
         role="tree"
         aria-label="XML structure"
       >
@@ -174,11 +178,11 @@ function XmlNodeRenderer({
       if (!trimmed) return null;
       return (
         <div
-          className="tree-node-row flex min-w-max items-center rounded px-1.5 py-0.5"
+          className="tree-node-row flex w-full items-start rounded px-1.5 py-0.5"
           style={{ paddingLeft: indentPadding }}
         >
-          <span className="inline-block w-4" />
-          <span className="text-foreground">{trimmed}</span>
+          <span className="inline-block w-4 shrink-0" />
+          <TruncatableText text={trimmed} className="text-foreground min-w-0 break-all" />
         </div>
       );
     }
@@ -188,16 +192,19 @@ function XmlNodeRenderer({
       const isCopied = copiedId === commentId;
       return (
         <div
-          className="group tree-node-row relative flex min-w-max items-center justify-between rounded px-1.5 py-0.5"
+          className="group tree-node-row relative flex w-full items-start justify-between rounded px-1.5 py-0.5"
           data-active={isActive}
           onClick={() => setActivePath(isActive ? null : path)}
         >
-          <div className="flex items-center" style={{ paddingLeft: indentPadding }}>
-            <span className="inline-block w-4" />
-            <span className="italic text-muted-foreground/70">{node.raw}</span>
+          <div className="flex min-w-0 flex-1 items-baseline" style={{ paddingLeft: indentPadding }}>
+            <span className="inline-block w-4 shrink-0" />
+            <TruncatableText
+              text={node.raw}
+              className="italic text-muted-foreground/70 min-w-0 break-all"
+            />
           </div>
           <div
-            className="ml-4 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 data-[visible=true]:opacity-100"
+            className="sticky right-0 ml-2 flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 data-[visible=true]:opacity-100"
             data-visible={isActive}
           >
             <Button
@@ -232,16 +239,19 @@ function XmlNodeRenderer({
     const isCopied = copiedId === rawId;
     return (
       <div
-        className="group tree-node-row relative flex min-w-max items-center justify-between rounded px-1.5 py-0.5"
+        className="group tree-node-row relative flex w-full items-start justify-between rounded px-1.5 py-0.5"
         data-active={isActive}
         onClick={() => setActivePath(isActive ? null : path)}
       >
-        <div className="flex items-center" style={{ paddingLeft: indentPadding }}>
-          <span className="inline-block w-4" />
-          <span className="text-teal-600 dark:text-teal-400">{node.raw}</span>
+        <div className="flex min-w-0 flex-1 items-baseline" style={{ paddingLeft: indentPadding }}>
+          <span className="inline-block w-4 shrink-0" />
+          <TruncatableText
+            text={node.raw}
+            className="text-teal-600 dark:text-teal-400 min-w-0 break-all"
+          />
         </div>
         <div
-          className="ml-4 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 data-[visible=true]:opacity-100"
+          className="sticky right-0 ml-2 flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 data-[visible=true]:opacity-100"
           data-visible={isActive}
         >
           <Button
@@ -281,16 +291,16 @@ function XmlNodeRenderer({
   if (node.selfClose) {
     return (
       <div
-        className="group tree-node-row relative flex min-w-max items-center justify-between rounded px-1.5 py-0.5"
+        className="group tree-node-row relative flex w-full items-center justify-between rounded px-1.5 py-0.5"
         data-active={isActive}
         onClick={() => setActivePath(isActive ? null : path)}
       >
-        <div className="flex items-center" style={{ paddingLeft: indentPadding }}>
-          <span className="inline-block w-4" />
+        <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1" style={{ paddingLeft: indentPadding }}>
+          <span className="inline-block w-4 shrink-0" />
           <XmlTagSpan raw={node.open} />
         </div>
         <div
-          className="ml-4 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 data-[visible=true]:opacity-100"
+          className="sticky right-0 ml-2 flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 data-[visible=true]:opacity-100"
           data-visible={isActive}
         >
           <Button
@@ -331,21 +341,24 @@ function XmlNodeRenderer({
     const textContent = innerText.trim();
     return (
       <div
-        className="group tree-node-row relative flex min-w-max items-center justify-between rounded px-1.5 py-0.5"
+        className="group tree-node-row relative flex w-full items-start justify-between rounded px-1.5 py-0.5"
         data-active={isActive}
         onClick={() => setActivePath(isActive ? null : path)}
       >
-        <div className="flex items-center" style={{ paddingLeft: indentPadding }}>
-          <span className="inline-block w-4" />
+        <div
+          className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-0.5"
+          style={{ paddingLeft: indentPadding }}
+        >
+          <span className="inline-block w-4 shrink-0" />
           <XmlTagSpan raw={node.open} />
-          <span className="text-foreground">{textContent}</span>
-          <span className="code-punctuation">&lt;/</span>
-          <span className="code-tag">{node.name}</span>
-          <span className="code-punctuation">&gt;</span>
+          <TruncatableText text={textContent} className="text-foreground min-w-0 break-all" />
+          <span className="code-punctuation shrink-0">&lt;/</span>
+          <span className="code-tag shrink-0">{node.name}</span>
+          <span className="code-punctuation shrink-0">&gt;</span>
         </div>
 
         <div
-          className="ml-4 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 data-[visible=true]:opacity-100"
+          className="sticky right-0 ml-2 flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 data-[visible=true]:opacity-100"
           data-visible={isActive}
         >
           <Button
@@ -407,14 +420,14 @@ function XmlNodeRenderer({
   return (
     <div className="flex flex-col">
       <div
-        className="group tree-node-row relative flex min-w-max items-center justify-between rounded px-1.5 py-0.5"
+        className="group tree-node-row relative flex w-full items-center justify-between rounded px-1.5 py-0.5"
         data-active={isActive}
         onClick={() => setActivePath(isActive ? null : path)}
       >
-        <div className="flex items-center" style={{ paddingLeft: indentPadding }}>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1" style={{ paddingLeft: indentPadding }}>
           <button
             type="button"
-            className="mr-0.5 flex h-4 w-4 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+            className="mr-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
             onClick={(e) => {
               e.stopPropagation();
               toggleCollapse(path);
@@ -438,7 +451,7 @@ function XmlNodeRenderer({
                 e.stopPropagation();
                 toggleCollapse(path);
               }}
-              className="mx-1 rounded bg-muted px-1.5 py-0.2 text-[11px] text-muted-foreground hover:text-foreground"
+              className="mx-1 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
             >
               ... {elementCount > 0 ? `${elementCount} child tags` : "content"}
             </button>
@@ -446,15 +459,15 @@ function XmlNodeRenderer({
 
           {isCollapsed && (
             <>
-              <span className="code-punctuation">&lt;/</span>
-              <span className="code-tag">{node.name}</span>
-              <span className="code-punctuation">&gt;</span>
+              <span className="code-punctuation shrink-0">&lt;/</span>
+              <span className="code-tag shrink-0">{node.name}</span>
+              <span className="code-punctuation shrink-0">&gt;</span>
             </>
           )}
         </div>
 
         <div
-          className="ml-4 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 data-[visible=true]:opacity-100"
+          className="sticky right-0 ml-2 flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 data-[visible=true]:opacity-100"
           data-visible={isActive}
         >
           <Button
@@ -527,10 +540,10 @@ function XmlNodeRenderer({
           ))}
 
           <div
-            className="tree-node-row flex min-w-max items-center rounded px-1.5 py-0.5"
+            className="tree-node-row flex w-full items-center rounded px-1.5 py-0.5"
             style={{ paddingLeft: indentPadding }}
           >
-            <span className="inline-block w-4" />
+            <span className="inline-block w-4 shrink-0" />
             <span className="code-punctuation">&lt;/</span>
             <span className="code-tag">{node.name}</span>
             <span className="code-punctuation">&gt;</span>
@@ -538,6 +551,35 @@ function XmlNodeRenderer({
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Renders arbitrary text, truncating it if it exceeds MAX_INLINE characters.
+ * The "Show full" / "Hide" toggle reveals the complete string inline.
+ */
+function TruncatableText({ text, className }: { text: string; className?: string }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (text.length <= MAX_INLINE) {
+    return <span className={className}>{text}</span>;
+  }
+
+  return (
+    <span className={className}>
+      {expanded ? text : `${text.slice(0, MAX_INLINE)}…`}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setExpanded((v) => !v);
+        }}
+        className="ml-1.5 inline rounded bg-muted px-1 py-0.5 text-[10px] font-sans text-muted-foreground hover:text-foreground"
+        title={expanded ? "Collapse value" : "Show full value"}
+      >
+        {expanded ? "Hide" : "Show full"}
+      </button>
+    </span>
   );
 }
 
@@ -557,12 +599,12 @@ function XmlTagSpan({ raw }: { raw: string }) {
     const attrName = attrMatch[1];
     const attrVal = attrMatch[2] ?? attrMatch[3];
     parts.push(
-      <span key={`attr-${attrMatch.index}`} className="ml-1.5">
-        <span className="code-attr">{attrName}</span>
+      <span key={`attr-${attrMatch.index}`} className="ml-1.5 inline-flex flex-wrap items-baseline gap-x-0.5">
+        <span className="code-attr shrink-0">{attrName}</span>
         {attrVal !== undefined && (
           <>
-            <span className="code-punctuation">=</span>
-            <span className="code-attr-value">&quot;{attrVal}&quot;</span>
+            <span className="code-punctuation shrink-0">=</span>
+            <AttributeValue value={attrVal} />
           </>
         )}
       </span>
@@ -570,11 +612,39 @@ function XmlTagSpan({ raw }: { raw: string }) {
   }
 
   return (
-    <span>
-      <span className="code-punctuation">&lt;</span>
-      <span className="code-tag">{tagName}</span>
+    <span className="inline-flex flex-wrap items-baseline gap-x-0.5">
+      <span className="code-punctuation shrink-0">&lt;</span>
+      <span className="code-tag shrink-0">{tagName}</span>
       {parts}
-      <span className="code-punctuation">{closing}</span>
+      <span className="code-punctuation shrink-0">{closing}</span>
+    </span>
+  );
+}
+
+/**
+ * Attribute value with truncation for long strings.
+ */
+function AttributeValue({ value }: { value: string }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (value.length <= MAX_INLINE) {
+    return <span className="code-attr-value">&quot;{value}&quot;</span>;
+  }
+
+  return (
+    <span className="code-attr-value min-w-0 break-all">
+      &quot;{expanded ? value : `${value.slice(0, MAX_INLINE)}…`}&quot;
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setExpanded((v) => !v);
+        }}
+        className="ml-1 inline rounded bg-muted px-1 py-0.5 text-[10px] font-sans text-muted-foreground hover:text-foreground"
+        title={expanded ? "Collapse value" : "Show full value"}
+      >
+        {expanded ? "Hide" : "Show full"}
+      </button>
     </span>
   );
 }
