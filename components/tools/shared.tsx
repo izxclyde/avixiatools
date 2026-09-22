@@ -322,23 +322,26 @@ export function FormatterPanel({
 
         {/* Right: Output */}
         <div className="grid min-w-0 gap-1.5 content-start">
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-            <Label htmlFor="formatter-output">Output</Label>
-            {output && (
-              <div className="flex flex-wrap items-center gap-2">
-                {viewToggle}
-                <CopyButton value={output} />
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  title="Expand to full screen"
-                  aria-label="Expand output to full screen"
-                  onClick={() => setFullscreen(true)}
-                >
-                  <Maximize2 className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
+          <div className="grid min-w-0 gap-2">
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+              <Label htmlFor="formatter-output">Output</Label>
+              {output && (
+                <div className="flex items-center gap-2">
+                  <CopyButton value={output} />
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    title="Expand to full screen"
+                    aria-label="Expand output to full screen"
+                    onClick={() => setFullscreen(true)}
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            {/* ponytail: toggle on its own row — the full toolbar (~330px) doesn't fit narrow panes */}
+            {output && viewToggle ? <div className="min-w-0">{viewToggle}</div> : null}
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -357,14 +360,16 @@ export function FormatterPanel({
 
       <Dialog open={fullscreen} onOpenChange={setFullscreen}>
         <DialogContent className="flex max-h-[90vh] h-[90vh] flex-col overflow-hidden sm:max-w-3xl lg:max-w-5xl">
-          <div className="flex flex-wrap items-center justify-between gap-2 pr-8">
-            <DialogTitle>Formatted output</DialogTitle>
-            {output && (
-              <div className="flex items-center gap-2">
-                {viewToggle}
-                <CopyButton value={output} />
-              </div>
-            )}
+          <div className="grid min-w-0 gap-2 pr-8">
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+              <DialogTitle>Formatted output</DialogTitle>
+              {output && (
+                <div className="flex items-center gap-2">
+                  <CopyButton value={output} />
+                </div>
+              )}
+            </div>
+            {output && viewToggle ? <div className="min-w-0">{viewToggle}</div> : null}
           </div>
           <div className="min-h-0 flex-1 overflow-auto">
             {output ? (
