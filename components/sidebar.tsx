@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Menu, Search, Wrench } from "lucide-react";
+import { Menu, PanelLeftClose, PanelLeftOpen, Search, Wrench } from "lucide-react";
 import { activeCategories, toolsByCategory, type Tool } from "@/lib/tools";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { usePersistedState } from "@/components/tools/shared";
 import { cn } from "@/lib/utils";
 
 const matches = (tool: Tool, q: string) =>
@@ -84,13 +85,17 @@ function SidebarSearch({
 function SidebarBody({
   query,
   setQuery,
+  expanded,
+  onCollapse,
 }: {
   query: string;
   setQuery: (v: string) => void;
+  expanded?: boolean;
+  onCollapse?: () => void;
 }) {
   return (
-    <div className="flex h-full flex-col">
-      <SidebarHeader />
+    <div className="flex h-full w-64 flex-col">
+      <SidebarHeader expanded={expanded} onCollapse={onCollapse} />
       <Separator />
       <SidebarSearch value={query} onChange={setQuery} />
       {/* min-h-0 lets flex actually constrain the area so long tool lists scroll */}
@@ -106,12 +111,36 @@ function SidebarBody({
 export function Sidebar() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  // ponytail: persisted so the content keeps its full width across reloads.
+  const [collapsed, setCollapsed] = usePersistedState("avixia:sidebar:collapsed", false);
 
   return (
     <>
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r apple-chrome lg:flex">
-        <SidebarBody query={query} setQuery={setQuery} />
+      <aside
+        id="app-sidebar"
+        inert={collapsed}
+        className={cn(
+          "sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r apple-chrome transition-[width] duration-200 ease-out lg:flex",
+          collapsed ? "w-0 border-transparent" : "w-64"
+        )}
+      >
+        <SidebarBody query={query} setQuery={setQuery} expanded={!collapsed} onCollapse={() => setCollapsed(true)} />
       </aside>
+
+      {collapsed && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="fixed left-3 top-3 z-50 hidden lg:flex"
+          aria-label="Expand sidebar"
+          title="Expand sidebar"
+          aria-expanded={false}
+          aria-controls="app-sidebar"
+          onClick={() => setCollapsed(false)}
+        >
+          <PanelLeftOpen className="h-5 w-5" />
+        </Button>
+      )}
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger
@@ -134,7 +163,7 @@ export function Sidebar() {
   );
 }
 
-function SidebarHeader() {
+function SidebarHeader({ expanded, onCollapse }: { expanded?: boolean; onCollapse?: () => void }) {
   return (
     <div className="flex items-center gap-2 p-4">
       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -144,6 +173,19 @@ function SidebarHeader() {
         avixia<span className="text-primary">tools</span>
       </Link>
       <ThemeToggle className="ml-auto" />
+      {onCollapse && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Collapse sidebar"
+          title="Collapse sidebar"
+          aria-expanded={expanded}
+          aria-controls="app-sidebar"
+          onClick={onCollapse}
+        >
+          <PanelLeftClose className="h-4 w-4" />
+        </Button>
+      )}
     </div>
   );
 }
