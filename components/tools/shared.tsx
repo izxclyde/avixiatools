@@ -222,6 +222,7 @@ export function FormatterPanel({
   );
 
   // ponytail: id param keeps inline + fullscreen textareas on unique ids.
+  // Raw textareas are capped so minified single-line output scrolls instead of growing the page.
   const renderOutputBlock = (id: string) => (
     <>
       {renderOutput && viewMode === "tree" ? (
@@ -230,7 +231,7 @@ export function FormatterPanel({
             id={id}
             readOnly
             value={output}
-            className="h-full min-h-[200px] font-mono text-sm whitespace-pre-wrap break-all overflow-x-hidden"
+            className="h-full max-h-[600px] min-h-[200px] overflow-x-hidden overflow-y-auto font-mono text-sm whitespace-pre-wrap break-all"
           />
         )
       ) : (
@@ -238,7 +239,7 @@ export function FormatterPanel({
           id={id}
           readOnly
           value={output}
-          className="h-full min-h-[200px] font-mono text-sm whitespace-pre-wrap break-all overflow-x-hidden"
+          className="h-full max-h-[600px] min-h-[200px] overflow-x-hidden overflow-y-auto font-mono text-sm whitespace-pre-wrap break-all"
         />
       )}
     </>
@@ -256,7 +257,8 @@ export function FormatterPanel({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={placeholder}
-            className="min-h-[400px] font-mono text-sm lg:min-h-[500px]"
+            wrap="off"
+            className="max-h-[600px] min-h-[400px] overflow-x-auto overflow-y-auto font-mono text-sm whitespace-pre lg:min-h-[500px]"
             aria-describedby="formatter-status"
             aria-invalid={live.state === "invalid"}
           />
