@@ -67,7 +67,7 @@ export function JsonTreeView({ tree, rawJson }: JsonTreeViewProps) {
   }, [tree]);
 
   return (
-    <div className="flex flex-col rounded-lg border bg-card text-card-foreground shadow-xs">
+    <div className="flex min-w-0 flex-col rounded-lg border bg-card text-card-foreground shadow-xs">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-3 py-2 text-xs">
         <div className="flex items-center gap-2 text-muted-foreground">
           <span className="font-semibold text-foreground">Interactive Tree</span>
