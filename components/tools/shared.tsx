@@ -146,6 +146,11 @@ export function FormatterPanel({
   const [error, setError] = useState("");
   const [viewMode, setViewMode] = useState<"tree" | "raw">("tree");
 
+  const renderedOutput = useMemo(
+    () => (renderOutput && output ? renderOutput(output, isMinified) : null),
+    [renderOutput, output, isMinified]
+  );
+
   const live = useMemo(() => {
     if (!input.trim()) return { state: "idle" as const, text: "Waiting for input." };
     const detail = describe?.(input);
@@ -284,7 +289,7 @@ export function FormatterPanel({
           </div>
 
           {renderOutput && viewMode === "tree" ? (
-            renderOutput(output, isMinified) ?? (
+            renderedOutput ?? (
               <Textarea
                 id="formatter-output"
                 readOnly

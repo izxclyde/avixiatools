@@ -46,19 +46,19 @@ export function XmlTreeView({ nodes, rawXml }: XmlTreeViewProps) {
 
   const collapseAll = useCallback(() => {
     const paths = new Set<string>();
-    const collectPaths = (nodeList: XmlNode[], curPath: string) => {
+    const collectPaths = (nodeList: XmlNode[], parentPath: string, isRoot: boolean) => {
       nodeList.forEach((node, idx) => {
-        const path = `${curPath}[${idx}]`;
+        const path = isRoot ? `node-${idx}` : `${parentPath}[${idx}]`;
         if (node.kind === "element" && !node.selfClose && node.children.length > 0) {
           const isTextOnly = !node.children.some((c) => c.kind === "element");
           if (!isTextOnly) {
             paths.add(path);
-            collectPaths(node.children, path);
+            collectPaths(node.children, path, false);
           }
         }
       });
     };
-    collectPaths(nodes, "root");
+    collectPaths(nodes, "", true);
     setCollapsedPaths(paths);
   }, [nodes]);
 
