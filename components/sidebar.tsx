@@ -131,7 +131,7 @@ export function Sidebar() {
         <Button
           variant="ghost"
           size="icon"
-          className="fixed left-3 top-3 z-50 hidden lg:flex"
+          className="fixed bottom-3 left-3 z-50 hidden lg:flex"
           aria-label="Expand sidebar"
           title="Expand sidebar"
           aria-expanded={false}
