@@ -11,13 +11,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Dropzone } from "@/components/tools/dropzone";
 import { ShareButton } from "@/components/tools/share-button";
 import { ToolNote } from "@/components/tools/tool-note";
 import { usePdfFile } from "@/hooks/use-pdf-file";
 import { downloadBlob } from "@/lib/download";
-import { canvasToBlob, getPdfLib, pdfBlob, renderPageToCanvas } from "@/lib/pdf";
-import { baseName, outputName } from "@/lib/logic/pdf";
+import { getPdfLib, pdfBlob, renderPageToCanvas } from "@/lib/pdf";
+import { baseName, outputName, sanitizeWinAnsi } from "@/lib/logic/pdf";
+import {
+  bboxToTextPlacement,
+  collectWords,
+  hasTextLayer,
+  unrotateBbox,
+  type OcrWord,
+  type PageGeometry,
+} from "@/lib/logic/ocr";
 
 const LANGUAGES = [
   { value: "eng", label: "English" },
@@ -32,10 +41,13 @@ const LANGUAGES = [
 type Lang = (typeof LANGUAGES)[number]["value"];
 type Mode = "pdf" | "text";
 
+type OcrPage = { page: number; words: OcrWord[]; geometry: PageGeometry };
+
 export default function OcrPdf() {
   const { state, error: openError, opening, open, clear } = usePdfFile();
   const [lang, setLang] = useState<Lang>("eng");
   const [mode, setMode] = useState<Mode>("pdf");
+  const [autoStraighten, setAutoStraighten] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,8 +67,8 @@ export default function OcrPdf() {
       // ponytail: single language per run — multi-language docs need re-running per lang
       const worker = await createWorker(lang);
       try {
-        const pages: Blob[] = [];
         const texts: string[] = [];
+        const ocrPages: OcrPage[] = [];
 
         for (let i = 1; i <= state.pageCount; i++) {
           if (cancelRef.current) {
@@ -65,20 +77,54 @@ export default function OcrPdf() {
           }
           setProgress(`Reading page ${i} of ${state.pageCount}…`);
           const pageProxy = await state.pdf.getPage(i);
-          const base = pageProxy.getViewport({ scale: 1 });
-          // 72dpi baseline keeps tesseract's PDF pages the same size as the original
-          const canvas = await renderPageToCanvas(pageProxy, Math.min(base.width * 2, 3000));
-          const image = await canvasToBlob(canvas, "image/png");
 
-          if (mode === "text") {
-            const { data } = await worker.recognize(image);
-            texts.push(data.text.trim());
-          } else {
-            // Searchable-PDF output: page image + invisible machine-read text layer
-            const { data } = await worker.recognize(image, {}, { pdf: true });
-            if (!data.pdf) throw new Error("The OCR engine returned no PDF data.");
-            pages.push(pdfBlob(new Uint8Array(data.pdf as unknown as Uint8Array)));
+          // Born-digital pages already carry a text layer; OCRing them again
+          // would stack a second, invisible copy of the same words.
+          const existing = await pageProxy.getTextContent();
+          const existingText = existing.items
+            .map((item) => ("str" in item ? item.str : ""))
+            .join("");
+          if (hasTextLayer(existingText)) {
+            texts.push(existingText.trim());
+            continue;
           }
+
+          const base = pageProxy.getViewport({ scale: 1 });
+          // 2x keeps small print legible; the cap stops runaway canvases.
+          const canvas = await renderPageToCanvas(
+            pageProxy,
+            Math.min(base.width * 2, 3000)
+          );
+          const { data } = await worker.recognize(
+            canvas,
+            autoStraighten ? { rotateAuto: true } : {},
+            mode === "pdf" ? { text: true, blocks: true } : { text: true }
+          );
+          texts.push(data.text.trim());
+          if (mode !== "pdf") continue;
+
+          const theta = autoStraighten ? data.rotateRadians ?? 0 : 0;
+          const words = collectWords(data.blocks).map((word) =>
+            theta
+              ? {
+                  ...word,
+                  bbox: unrotateBbox(word.bbox, theta, canvas.width, canvas.height),
+                }
+              : word
+          );
+          const view = pageProxy.view;
+          ocrPages.push({
+            page: i,
+            words,
+            geometry: {
+              scale: canvas.width / base.width,
+              originX: view[0],
+              originY: view[1],
+              width: view[2] - view[0],
+              height: view[3] - view[1],
+              rotation: pageProxy.rotate,
+            },
+          });
         }
 
         if (mode === "text") {
@@ -91,17 +137,29 @@ export default function OcrPdf() {
           return;
         }
 
-        setProgress("Assembling searchable PDF…");
-        const out = await (await getPdfLib()).PDFDocument.create();
-        for (const page of pages) {
-          const doc = await (
-            await getPdfLib()
-          ).PDFDocument.load(new Uint8Array(await page.arrayBuffer()));
-          const [copied] = await out.copyPages(doc, [0]);
-          out.addPage(copied);
+        setProgress("Adding the text layer…");
+        const { PDFDocument, StandardFonts, degrees } = await getPdfLib();
+        // Loading the original keeps every page's existing content and
+        // resolution — only an invisible layer of words is added on top.
+        const doc = await PDFDocument.load(
+          new Uint8Array(await state.file.arrayBuffer())
+        );
+        const font = await doc.embedFont(StandardFonts.Helvetica);
+        for (const { page, words, geometry } of ocrPages) {
+          const target = doc.getPage(page - 1);
+          for (const word of words) {
+            const place = bboxToTextPlacement(word.bbox, geometry);
+            target.drawText(sanitizeWinAnsi(word.text), {
+              x: place.x,
+              y: place.y,
+              size: place.size,
+              font,
+              opacity: 0,
+              rotate: degrees(place.rotate),
+            });
+          }
         }
-        const bytes = await out.save();
-        const blob = pdfBlob(bytes);
+        const blob = pdfBlob(await doc.save());
         const name = outputName(state.file.name, "-searchable");
         downloadBlob(blob, name);
         setResult({ blob, name });
@@ -158,6 +216,20 @@ export default function OcrPdf() {
                     <SelectItem value="text">Plain text (.txt)</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="col-span-full flex items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <Label htmlFor="auto-straighten">Auto-straighten skewed scans</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Detects and corrects page skew before recognising. Leave off
+                    if the text layer looks misplaced.
+                  </p>
+                </div>
+                <Switch
+                  id="auto-straighten"
+                  checked={autoStraighten}
+                  onCheckedChange={setAutoStraighten}
+                />
               </div>
             </div>
 
@@ -228,11 +300,14 @@ export default function OcrPdf() {
       )}
 
       <ToolNote>
-        Runs Tesseract OCR entirely in your browser. The first run downloads the
-        language model (10–25MB) which is cached afterwards. Recognition quality
-        depends on scan quality — clean, straight scans work best. The
-        searchable-PDF text layer is machine-read, so expect occasional
-        misreads.
+        Runs Tesseract OCR entirely in your browser. Your original pages keep
+        their existing content and resolution — only an invisible layer of
+        recognised words is added, so the file stays close to its original size.
+        Pages that already contain text are left untouched. The first run
+        downloads the language model (10–25MB) which is cached afterwards.
+        Recognition quality depends on scan quality, and the text layer is
+        machine-read, so expect occasional misreads. Only Latin-script
+        languages can be written into the text layer.
       </ToolNote>
     </div>
   );

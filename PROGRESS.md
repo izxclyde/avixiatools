@@ -88,17 +88,18 @@ Known limits: password-protected inputs are rejected with a clear message (no de
 | Crop PDF ✅ | `crop-pdf` | % margins with live first-page preview overlay; page ranges |
 | Sign PDF ✅ | `sign-pdf` | Pointer/touch signature pad (auto-trimmed PNG), click-to-place, width slider |
 | Redact PDF ✅ | `redact-pdf` | Drag boxes; affected pages rasterised with boxes burned in, others copied losslessly |
-| OCR PDF ✅ | `ocr-pdf` | tesseract.js v7; searchable-PDF (invisible text layer) or plain-text output; 7 languages |
+| OCR PDF ✅ | `ocr-pdf` | tesseract.js v7; adds an invisible word-level text layer **on top of the original pages** (content and resolution preserved, ~1–2% size growth) or plain-text output; 7 languages; optional auto-straighten for skewed scans; pages that already contain text are skipped |
 
 Shared additions:
 - `@cantoo/pdf-lib` replaces `pdf-lib` everywhere (drop-in fork adding AES encryption)
 - `lib/pdf.ts` — pdfmake loader (vfs registration), encrypted-PDF opener, `extractPageLines()` text extraction
 - `lib/pdfdoc.ts` — shared MD/HTML→pdfmake content mapper (`mdToContent`, `htmlToContent`, `contentToBlob`, custom table layouts); pure parts node-tested
 - `lib/logic/csv.ts` — `parseCsv`, `splitColumns` (tested)
+- `lib/logic/ocr.ts` — word-box → PDF placement (px→pt, y-flip, page `/Rotate`), auto-straighten un-rotation, block-tree flattening, existing-text detection (tested)
 - `components/tools/tool-note.tsx` — shared in-tool limitations notice; every tool with a tradeoff surfaces it up front
 - Dependencies: `@cantoo/pdf-lib`, `pdfmake`, `marked`, `docx`, `xlsx`, `tesseract.js` — all dynamically imported per tool page
 
-Known limits (surfaced in each tool's note): Word/Excel are text-level conversions; HTML/Markdown cover a tag subset; redaction rasterises affected pages; OCR downloads language models on first use and is machine-read quality; protect permission flags are advisory.
+Known limits (surfaced in each tool's note): Word/Excel are text-level conversions; HTML/Markdown cover a tag subset; redaction rasterises affected pages; OCR downloads language models on first use, is machine-read quality, and can only write Latin-script text into the invisible layer (standard-font encoding); protect permission flags are advisory.
 
 **Future wave — image tools (2):** Convert Image (PNG/JPEG/WebP/etc.), Optimize Image.
 
