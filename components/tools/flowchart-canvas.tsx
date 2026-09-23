@@ -1,19 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   Background,
   BackgroundVariant,
+  ConnectionMode,
   Controls,
   Handle,
   NodeResizer,
   Position,
+  reconnectEdge,
   useNodesState,
   useEdgesState,
+  useUpdateNodeInternals,
   addEdge,
 } from "@xyflow/react";
-import type { Connection, EdgeProps, Node, NodeProps } from "@xyflow/react";
+import type { Connection, Edge, EdgeProps, Node, NodeProps } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Download, FileJson, ImageDown, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,23 +41,29 @@ import {
   FLOW_FONT,
   FLOW_FONT_SIZE,
   FLOW_LINE_HEIGHT,
+  FLOW_SIDES,
   KIND_LABELS,
   MAX_NODE_SIZE,
   NODE_DEFAULTS,
   NODE_KINDS,
   NODE_MIN,
+  SIDE_LABELS,
   docBounds,
+  edgeMidpoint,
   edgePath,
   flowToSvg,
+  handleFromSide,
   makeFlowId,
   nodePath,
   nodeSize,
   parseFlowDoc,
   sampleFlowDoc,
   serializeFlowDoc,
+  sideFromHandle,
   wrapText,
   type FlowDoc,
   type FlowNodeKind,
+  type FlowSide,
 } from "@/lib/logic/flowchart";
 
 type FlowData = {
@@ -96,7 +105,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function toDoc(nodes: RFNode[], edges: { id: string; source: string; target: string; label?: unknown }[]): FlowDoc {
+function toDoc(nodes: RFNode[], edges: Edge[]): FlowDoc {
   return {
     version: 1,
     nodes: nodes.map((n) => {
@@ -119,6 +128,13 @@ function toDoc(nodes: RFNode[], edges: { id: string; source: string; target: str
       source: e.source,
       target: e.target,
       ...(typeof e.label === "string" && e.label ? { label: e.label.slice(0, 200) } : {}),
+      // Default sides are omitted so plain docs stay tidy.
+      ...(e.sourceHandle && sideFromHandle(e.sourceHandle) !== "bottom"
+        ? { sourceHandle: e.sourceHandle }
+        : {}),
+      ...(e.targetHandle && sideFromHandle(e.targetHandle, "top") !== "top"
+        ? { targetHandle: e.targetHandle }
+        : {}),
     })),
   };
 }
@@ -142,23 +158,35 @@ function fromNodes(doc: FlowDoc): RFNode[] {
   });
 }
 
-function fromEdges(doc: FlowDoc) {
+function fromEdges(doc: FlowDoc): Edge[] {
   return doc.edges.map((e) => ({
     id: e.id,
     source: e.source,
     target: e.target,
+    // Explicit defaults: handle lookup must not depend on handle DOM order.
+    sourceHandle: e.sourceHandle ?? "b",
+    targetHandle: e.targetHandle ?? "t",
     ...(e.label ? { label: e.label } : {}),
     type: "flow",
   }));
 }
 
-function FlowShapeNode({ data, selected, width, height }: NodeProps) {
+const FlowShapeNode = memo(function FlowShapeNode({ id, data, selected, width, height }: NodeProps) {
   const d = data as unknown as FlowData;
   const { w, h } = nodeSize({ kind: d.kind, w: width ?? undefined, h: height ?? undefined });
   const min = NODE_MIN[d.kind] ?? NODE_MIN.process;
   const lines = wrapText(d.label || "", Math.max(24, w - 24), canvasMeasure);
   const cx = w / 2;
   const startY = h / 2 - ((lines.length - 1) * FLOW_LINE_HEIGHT) / 2;
+  const updateNodeInternals = useUpdateNodeInternals();
+
+  // NodeResizer reports a dimensions change that pre-sets `measured`, so React
+  // Flow's own resize check never re-measures the handles. Without this force,
+  // connectors keep anchoring to where the handles were before the resize.
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [id, w, h, d.kind, updateNodeInternals]);
+
   return (
     <div style={{ width: w, height: h }} className={selected ? "outline-2 outline-offset-2 outline-primary rounded" : undefined}>
       {selected && (
@@ -195,29 +223,57 @@ function FlowShapeNode({ data, selected, width, height }: NodeProps) {
           </text>
         )}
       </svg>
-      <Handle type="target" position={Position.Top} id="t" />
-      <Handle type="target" position={Position.Left} id="l" />
-      <Handle type="source" position={Position.Bottom} id="b" />
+      {/* All-source handles + Loose mode: any side can start or receive a connector. */}
+      <Handle type="source" position={Position.Top} id="t" />
       <Handle type="source" position={Position.Right} id="r" />
+      <Handle type="source" position={Position.Bottom} id="b" />
+      <Handle type="source" position={Position.Left} id="l" />
     </div>
   );
-}
+});
 
-function FlowElbowEdge({ sourceX, sourceY, targetX, targetY, label, selected }: EdgeProps) {
-  const d = edgePath(sourceX, sourceY, targetX, targetY);
-  const dir = targetY >= sourceY ? 1 : -1;
+// Direction a connector travels as it enters the target, per target side.
+const INWARD: Record<FlowSide, { x: number; y: number }> = {
+  top: { x: 0, y: 1 },
+  bottom: { x: 0, y: -1 },
+  left: { x: 1, y: 0 },
+  right: { x: -1, y: 0 },
+};
+
+const FlowElbowEdge = memo(function FlowElbowEdge({
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  label,
+  selected,
+}: EdgeProps) {
+  const from = { x: sourceX, y: sourceY, side: sourcePosition as FlowSide };
+  const to = { x: targetX, y: targetY, side: targetPosition as FlowSide };
+  const d = edgePath(from, to);
+  const dir = INWARD[to.side] ?? INWARD.top;
+  const baseX = targetX - dir.x * 8;
+  const baseY = targetY - dir.y * 8;
+  const perpX = -dir.y * 5;
+  const perpY = dir.x * 5;
+  const stroke = selected ? "var(--primary)" : EDGE_STROKE;
   const labelText = typeof label === "string" ? label : "";
+  const mid = labelText ? edgeMidpoint(from, to) : null;
   return (
     <g>
-      <path d={d} fill="none" stroke={selected ? "var(--primary)" : EDGE_STROKE} strokeWidth={selected ? 3 : 2} />
+      <path d={d} fill="none" stroke={stroke} strokeWidth={selected ? 3 : 2} />
+      {/* Grabbable target for selecting / reconnecting the connector. */}
+      <path d={d} fill="none" strokeOpacity={0} strokeWidth={20} className="react-flow__edge-interaction" />
       <polygon
-        points={`${targetX},${targetY} ${targetX - 5},${targetY - 8 * dir} ${targetX + 5},${targetY - 8 * dir}`}
-        fill={selected ? "var(--primary)" : EDGE_STROKE}
+        points={`${targetX},${targetY} ${baseX + perpX},${baseY + perpY} ${baseX - perpX},${baseY - perpY}`}
+        fill={stroke}
       />
-      {labelText && (
+      {mid && (
         <text
-          x={(sourceX + targetX) / 2}
-          y={(sourceY + targetY) / 2 - 6}
+          x={mid.x}
+          y={mid.y - 6}
           textAnchor="middle"
           fontFamily={FLOW_FONT}
           fontSize={12}
@@ -231,7 +287,7 @@ function FlowElbowEdge({ sourceX, sourceY, targetX, targetY, label, selected }: 
       )}
     </g>
   );
-}
+});
 
 const nodeTypes = { flow: FlowShapeNode };
 const edgeTypes = { flow: FlowElbowEdge };
@@ -240,8 +296,7 @@ export default function FlowchartCanvas() {
   const [saved, setSaved] = usePersistedState<FlowDoc | null>(STORAGE_KEY, null);
   const initial = useMemo(() => saved ?? sampleFlowDoc(), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [nodes, setNodes, onNodesChange] = useNodesState(initial ? fromNodes(initial) : []);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initial ? (fromEdges(initial) as any) : []);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initial ? fromEdges(initial) : []);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [shareTarget, setShareTarget] = useState<{ blob: Blob; filename: string } | null>(null);
@@ -319,11 +374,24 @@ export default function FlowchartCanvas() {
     [setEdges]
   );
 
+  // Drag an existing connector end onto another shape or side.
+  const onReconnect = useCallback(
+    (oldEdge: Edge, conn: Connection) => setEdges((es) => reconnectEdge(oldEdge, conn, es)),
+    [setEdges]
+  );
+
+  const updateEdgeSide = useCallback(
+    (id: string, end: "source" | "target", side: FlowSide) => {
+      const key = end === "source" ? "sourceHandle" : "targetHandle";
+      setEdges((es) => es.map((e) => (e.id === id ? { ...e, [key]: handleFromSide(side) } : e)));
+    },
+    [setEdges]
+  );
+
   const loadSample = useCallback(() => {
     const s = sampleFlowDoc();
     setNodes(fromNodes(s));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setEdges(fromEdges(s) as any);
+    setEdges(fromEdges(s));
     setError("");
   }, [setNodes, setEdges]);
 
@@ -403,8 +471,7 @@ export default function FlowchartCanvas() {
         if (file.size > 1_000_000) throw new Error("That file is too large (max 1MB).");
         const doc = parseFlowDoc(await file.text());
         setNodes(fromNodes(doc));
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setEdges(fromEdges(doc) as any);
+        setEdges(fromEdges(doc));
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't open that file.");
       }
@@ -449,6 +516,8 @@ export default function FlowchartCanvas() {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onReconnect={onReconnect}
+            connectionMode={ConnectionMode.Loose}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             snapToGrid
@@ -568,6 +637,37 @@ export default function FlowchartCanvas() {
           ) : selectedEdge ? (
             <div className="grid gap-3">
               <p className="text-sm font-semibold">Selected connection</p>
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    ["flow-edge-from", "From side", "source"],
+                    ["flow-edge-to", "To side", "target"],
+                  ] as const
+                ).map(([id, label, end]) => (
+                  <div key={id} className="grid gap-1.5">
+                    <Label htmlFor={id}>{label}</Label>
+                    <Select
+                      value={
+                        end === "source"
+                          ? sideFromHandle(selectedEdge.sourceHandle, "bottom")
+                          : sideFromHandle(selectedEdge.targetHandle, "top")
+                      }
+                      onValueChange={(v) => updateEdgeSide(selectedEdge.id, end, v as FlowSide)}
+                    >
+                      <SelectTrigger id={id}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FLOW_SIDES.map((side) => (
+                          <SelectItem key={side} value={side}>
+                            {SIDE_LABELS[side]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="flow-edge-label">Label (optional)</Label>
                 <Input
@@ -588,8 +688,9 @@ export default function FlowchartCanvas() {
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Select a shape or connection to edit its label, shape, size, and colours. Drag a
-              selected shape&apos;s corner to resize. Delete key removes the selection.
+              Select a shape or connection to edit its label, shape, size, sides, and colours.
+              Drag a selected shape&apos;s corner to resize, or drag a connector end onto another
+              dot to re-route it. Delete key removes the selection.
             </p>
           )}
         </aside>
