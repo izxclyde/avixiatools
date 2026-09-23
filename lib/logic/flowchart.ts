@@ -11,6 +11,9 @@ export type FlowNode = {
   label: string;
   fill?: string;
   stroke?: string;
+  /** Custom size in canvas px. Absent = the kind default below. */
+  w?: number;
+  h?: number;
 };
 
 export type FlowEdge = {
@@ -36,7 +39,7 @@ export const KIND_LABELS: Record<FlowNodeKind, string> = {
   connector: "Connector",
 };
 
-// Fixed v1 sizes — keeps layout, text wrapping and export in agreement.
+// Kind defaults — used when a node carries no custom size.
 export const NODE_DEFAULTS: Record<FlowNodeKind, { w: number; h: number }> = {
   terminator: { w: 160, h: 60 },
   process: { w: 170, h: 84 },
@@ -44,6 +47,18 @@ export const NODE_DEFAULTS: Record<FlowNodeKind, { w: number; h: number }> = {
   io: { w: 180, h: 84 },
   connector: { w: 64, h: 64 },
 };
+
+// Smallest usable box per kind; resizing below this breaks the shape or its label.
+export const NODE_MIN: Record<FlowNodeKind, { w: number; h: number }> = {
+  terminator: { w: 60, h: 32 },
+  process: { w: 60, h: 36 },
+  decision: { w: 80, h: 60 },
+  io: { w: 60, h: 36 },
+  connector: { w: 24, h: 24 },
+};
+
+// ponytail: generous ceiling that only stops tab-crashing exports, not legit diagrams.
+export const MAX_NODE_SIZE = 800;
 
 export const DEFAULT_FILL = "#ffffff";
 export const DEFAULT_STROKE = "#334155";
@@ -53,8 +68,21 @@ export const FLOW_FONT = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", s
 export const FLOW_FONT_SIZE = 13;
 export const FLOW_LINE_HEIGHT = 17;
 
-export function nodeSize(node: Pick<FlowNode, "kind">): { w: number; h: number } {
-  return NODE_DEFAULTS[node.kind] ?? NODE_DEFAULTS.process;
+const clampSize = (v: number, min: number) =>
+  Math.max(min, Math.min(MAX_NODE_SIZE, Math.round(v)));
+
+/**
+ * Single normaliser for node size: a custom w/h when present (clamped to the
+ * kind minimum and the global ceiling), otherwise the kind default. Every
+ * consumer — canvas, bounds, wrapping, export — routes through here so they
+ * can never disagree.
+ */
+export function nodeSize(node: Pick<FlowNode, "kind" | "w" | "h">): { w: number; h: number } {
+  const def = NODE_DEFAULTS[node.kind] ?? NODE_DEFAULTS.process;
+  const min = NODE_MIN[node.kind] ?? NODE_MIN.process;
+  const w = typeof node.w === "number" && Number.isFinite(node.w) ? clampSize(node.w, min.w) : def.w;
+  const h = typeof node.h === "number" && Number.isFinite(node.h) ? clampSize(node.h, min.h) : def.h;
+  return { w, h };
 }
 
 /** Short unique id for nodes/edges created in the editor. */
@@ -182,7 +210,7 @@ export function parseFlowDoc(input: string): FlowDoc {
   const ids = new Set<string>();
   const parsedNodes: FlowNode[] = nodes.map((n, i) => {
     if (!isRecord(n)) throw new Error(`Node ${i + 1} is malformed.`);
-    const { id, kind, x, y, label, fill, stroke } = n;
+    const { id, kind, x, y, label, fill, stroke, w, h } = n;
     if (typeof id !== "string" || !id) throw new Error(`Node ${i + 1} is missing an id.`);
     if (ids.has(id)) throw new Error(`Duplicate node id "${id}".`);
     ids.add(id);
@@ -192,10 +220,17 @@ export function parseFlowDoc(input: string): FlowDoc {
     if (!isFiniteNumber(x) || !isFiniteNumber(y)) {
       throw new Error(`Node "${id}" has an invalid position.`);
     }
+    if (w !== undefined && !isFiniteNumber(w)) {
+      throw new Error(`Node "${id}" has an invalid width.`);
+    }
+    if (h !== undefined && !isFiniteNumber(h)) {
+      throw new Error(`Node "${id}" has an invalid height.`);
+    }
     if (typeof label !== "string") throw new Error(`Node "${id}" is missing its label.`);
     if (label.length > 500) throw new Error(`Node "${id}" has too much text (max 500 characters).`);
     if (fill !== undefined && typeof fill !== "string") throw new Error(`Node "${id}" has a bad fill colour.`);
     if (stroke !== undefined && typeof stroke !== "string") throw new Error(`Node "${id}" has a bad line colour.`);
+    const size = nodeSize({ kind: kind as FlowNodeKind, w: w as number | undefined, h: h as number | undefined });
     return {
       id,
       kind: kind as FlowNodeKind,
@@ -204,6 +239,9 @@ export function parseFlowDoc(input: string): FlowDoc {
       label: label.slice(0, 500),
       ...(fill ? { fill } : {}),
       ...(stroke ? { stroke } : {}),
+      // Persist the clamped size only when the file actually resizes the shape.
+      ...(w !== undefined && size.w !== NODE_DEFAULTS[kind as FlowNodeKind].w ? { w: size.w } : {}),
+      ...(h !== undefined && size.h !== NODE_DEFAULTS[kind as FlowNodeKind].h ? { h: size.h } : {}),
     };
   });
 

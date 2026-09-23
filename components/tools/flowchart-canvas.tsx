@@ -7,6 +7,7 @@ import {
   BackgroundVariant,
   Controls,
   Handle,
+  NodeResizer,
   Position,
   useNodesState,
   useEdgesState,
@@ -38,8 +39,10 @@ import {
   FLOW_FONT_SIZE,
   FLOW_LINE_HEIGHT,
   KIND_LABELS,
+  MAX_NODE_SIZE,
   NODE_DEFAULTS,
   NODE_KINDS,
+  NODE_MIN,
   docBounds,
   edgePath,
   flowToSvg,
@@ -96,15 +99,21 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 function toDoc(nodes: RFNode[], edges: { id: string; source: string; target: string; label?: unknown }[]): FlowDoc {
   return {
     version: 1,
-    nodes: nodes.map((n) => ({
-      id: n.id,
-      kind: n.data.kind,
-      x: Math.round(n.position.x),
-      y: Math.round(n.position.y),
-      label: n.data.label.slice(0, 500),
-      ...(n.data.fill && n.data.fill !== DEFAULT_FILL ? { fill: n.data.fill } : {}),
-      ...(n.data.stroke && n.data.stroke !== DEFAULT_STROKE ? { stroke: n.data.stroke } : {}),
-    })),
+    nodes: nodes.map((n) => {
+      const size = nodeSize({ kind: n.data.kind, w: n.width, h: n.height });
+      const def = NODE_DEFAULTS[n.data.kind];
+      return {
+        id: n.id,
+        kind: n.data.kind,
+        x: Math.round(n.position.x),
+        y: Math.round(n.position.y),
+        label: n.data.label.slice(0, 500),
+        ...(n.data.fill && n.data.fill !== DEFAULT_FILL ? { fill: n.data.fill } : {}),
+        ...(n.data.stroke && n.data.stroke !== DEFAULT_STROKE ? { stroke: n.data.stroke } : {}),
+        ...(size.w !== def.w ? { w: size.w } : {}),
+        ...(size.h !== def.h ? { h: size.h } : {}),
+      };
+    }),
     edges: edges.map((e) => ({
       id: e.id,
       source: e.source,
@@ -127,7 +136,8 @@ function fromNodes(doc: FlowDoc): RFNode[] {
         fill: n.fill ?? DEFAULT_FILL,
         stroke: n.stroke ?? DEFAULT_STROKE,
       },
-      style: { width: w, height: h },
+      width: w,
+      height: h,
     };
   });
 }
@@ -142,14 +152,24 @@ function fromEdges(doc: FlowDoc) {
   }));
 }
 
-function FlowShapeNode({ data, selected }: NodeProps) {
+function FlowShapeNode({ data, selected, width, height }: NodeProps) {
   const d = data as unknown as FlowData;
-  const { w, h } = nodeSize({ kind: d.kind });
+  const { w, h } = nodeSize({ kind: d.kind, w: width ?? undefined, h: height ?? undefined });
+  const min = NODE_MIN[d.kind] ?? NODE_MIN.process;
   const lines = wrapText(d.label || "", Math.max(24, w - 24), canvasMeasure);
   const cx = w / 2;
   const startY = h / 2 - ((lines.length - 1) * FLOW_LINE_HEIGHT) / 2;
   return (
     <div style={{ width: w, height: h }} className={selected ? "outline-2 outline-offset-2 outline-primary rounded" : undefined}>
+      {selected && (
+        <NodeResizer
+          minWidth={min.w}
+          minHeight={min.h}
+          maxWidth={MAX_NODE_SIZE}
+          maxHeight={MAX_NODE_SIZE}
+          color="var(--primary)"
+        />
+      )}
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
         <path
           d={nodePath(d.kind, w, h)}
@@ -246,7 +266,8 @@ export default function FlowchartCanvas() {
           type: "flow",
           position: { x: 80 + offset, y: 80 + offset },
           data: { kind, label: SHORT_LABELS[kind], fill: DEFAULT_FILL, stroke: DEFAULT_STROKE },
-          style: { width: w, height: h },
+          width: w,
+          height: h,
         },
       ]);
       setError("");
@@ -259,12 +280,27 @@ export default function FlowchartCanvas() {
       setNodes((ns) =>
         ns.map((n) => {
           if (n.id !== id) return n;
-          const size = patch.kind ? NODE_DEFAULTS[patch.kind] : null;
-          return {
-            ...n,
-            data: { ...n.data, ...patch },
-            ...(size ? { style: { ...n.style, width: size.w, height: size.h } } : {}),
-          };
+          const next = { ...n, data: { ...n.data, ...patch } };
+          if (patch.kind) {
+            // Keep the current box, raised to the new shape's minimums.
+            const kept = nodeSize({ kind: patch.kind, w: n.width, h: n.height });
+            next.width = kept.w;
+            next.height = kept.h;
+          }
+          return next;
+        })
+      );
+    },
+    [setNodes]
+  );
+
+  const setNodeSize = useCallback(
+    (id: string, w: number, h: number) => {
+      setNodes((ns) =>
+        ns.map((n) => {
+          if (n.id !== id) return n;
+          const size = nodeSize({ kind: n.data.kind, w, h });
+          return { ...n, width: size.w, height: size.h };
         })
       );
     },
@@ -479,6 +515,43 @@ export default function FlowchartCanvas() {
                 value={selectedNode.data.fill || DEFAULT_FILL}
                 onChange={(v) => updateNode(selectedNode.id, { fill: v })}
               />
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    ["flow-w", "Width", "w"],
+                    ["flow-h", "Height", "h"],
+                  ] as const
+                ).map(([id, label, dim]) => {
+                  const size = nodeSize({
+                    kind: selectedNode.data.kind,
+                    w: selectedNode.width,
+                    h: selectedNode.height,
+                  });
+                  const min = NODE_MIN[selectedNode.data.kind] ?? NODE_MIN.process;
+                  return (
+                    <div key={id} className="grid gap-1.5">
+                      <Label htmlFor={id}>{label}</Label>
+                      <Input
+                        id={id}
+                        type="number"
+                        value={size[dim]}
+                        min={min[dim]}
+                        max={MAX_NODE_SIZE}
+                        step={dim === "w" ? 8 : 4}
+                        onChange={(e) => {
+                          const v = e.target.valueAsNumber;
+                          if (!Number.isFinite(v)) return;
+                          setNodeSize(
+                            selectedNode.id,
+                            dim === "w" ? v : size.w,
+                            dim === "h" ? v : size.h
+                          );
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
               <ColourInput
                 label="Line"
                 value={selectedNode.data.stroke || DEFAULT_STROKE}
@@ -515,8 +588,8 @@ export default function FlowchartCanvas() {
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Select a shape or connection to edit its label, shape, and colours. Delete key
-              removes the selection.
+              Select a shape or connection to edit its label, shape, size, and colours. Drag a
+              selected shape&apos;s corner to resize. Delete key removes the selection.
             </p>
           )}
         </aside>

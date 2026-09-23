@@ -29,7 +29,7 @@
 - QR Generator ✅ — styled QR codes with custom colors, shapes, and logos (via `qr-code-styling`, `jszip`); Single, WiFi, vCard, and Batch tabs; presets, PNG/SVG export, copy, and info caption (adapted from MIT-licensed delphitools, attributed in `ACKNOWLEDGEMENTS.md`)
 - Barcode Generator ✅ — Micro QR, Data Matrix, Aztec, PDF417, Code 128, Code 39, EAN-13, and UPC-A via `bwip-js`; Single and Batch tabs; charset filtering with auto-uppercase (Code 39), EAN-13/UPC-A mod-10 check-digit validation; size/padding sliders, colours + transparency, "Show numbers" toggle for 1D codes; PNG/SVG export, copy, batch ZIP (adapted from MIT-licensed delphitools, attributed in `ACKNOWLEDGEMENTS.md`)
 - Background Remover ✅ — automatic in-browser background removal via `@huggingface/transformers` + `briaai/RMBG-1.4` (WebGPU with WASM fallback); drop/paste/select input, download progress for the one-time ~180MB model fetch, side-by-side preview with checkerboard transparency, PNG export (adapted from MIT-licensed delphitools, attributed in `ACKNOWLEDGEMENTS.md`)
-- Flowchart Creator ✅ — interactive canvas via `@xyflow/react` (lazy-loaded, `ssr: false` so other tools skip the bundle); 5 node shapes, drag/connect/select, label/shape/colour inspector, grid snap, localStorage autosave; PNG (2×), SVG, and JSON export + JSON import via shared `lib/logic/flowchart.ts` (node-tested); `ToolNote` discloses raster/font limits and no-undo
+- Flowchart Creator ✅ — interactive canvas via `@xyflow/react` (lazy-loaded, `ssr: false` so other tools skip the bundle); 5 node shapes, drag/connect/select, label/shape/colour inspector, grid snap, localStorage autosave; resizable shapes (corner handles + inspector width/height, per-kind minimums, custom sizes persist and export); PNG (2×), SVG, and JSON export + JSON import via shared `lib/logic/flowchart.ts` (node-tested); `ToolNote` discloses raster/font limits and no-undo
 
 **Pages:**
 - Report an issue ✅ — `/report` creates GitHub issues automatically via the API (server-side `app/api/report` route, needs `GITHUB_TOKEN`); honeypot spam guard; footer + site credit link to hcnatividad.com
@@ -169,7 +169,7 @@ Known limits (surfaced in each tool's note): Word/Excel are text-level conversio
 **Current verification:**
 - `npm run build` — passes (Next.js 16 Turbopack); all 45 routes prerender
 - `npm run lint` — passes (0 errors; pre-existing `<img>` warnings in qr-generator/page-grid thumbnails are intentional for blob/data-URL images)
-- `npm test` — 101/101 pass (`tests/logic.test.mjs` + `tests/flowchart.test.mjs` + `tests/pdf-unlock.test.mjs` + others; run via `node --test "tests/*.test.mjs"`)
+- `npm test` — 109/109 pass (`tests/logic.test.mjs` + `tests/flowchart.test.mjs` + `tests/pdf-unlock.test.mjs` + others; run via `node --test "tests/*.test.mjs"`)
 - All active tools render interactively at `http://localhost:3000`
 
 **PDF hardening pass (deep test → fix):**
