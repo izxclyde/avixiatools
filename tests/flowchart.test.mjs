@@ -5,6 +5,7 @@ import {
   NODE_DEFAULTS,
   NODE_MIN,
   docBounds,
+  edgeMidpoint,
   edgePath,
   escapeXml,
   flowToSvg,
@@ -47,9 +48,29 @@ test("nodePath: one closed path per shape", () => {
   }
 });
 
-test("edgePath: straight when aligned, elbow otherwise", () => {
-  assert.equal(edgePath(10, 0, 10, 40), "M 10,0 V 40");
-  assert.equal(edgePath(0, 0, 40, 40), "M 0,0 V 20 H 40 V 40");
+test("edgePath: aligned bottom→top collapses to a straight run", () => {
+  const d = edgePath({ x: 10, y: 0, side: "bottom" }, { x: 10, y: 40, side: "top" });
+  assert.equal(d, "M 10,0 L 10,40");
+});
+
+test("edgePath: bottom→top routes through a mid-run", () => {
+  const d = edgePath({ x: 0, y: 0, side: "bottom" }, { x: 40, y: 40, side: "top" });
+  assert.equal(d, "M 0,0 L 0,20 L 40,20 L 40,40");
+});
+
+test("edgePath: side→side uses a horizontal mid-run", () => {
+  const d = edgePath({ x: 0, y: 0, side: "right" }, { x: 40, y: 40, side: "left" });
+  assert.equal(d, "M 0,0 L 20,0 L 20,40 L 40,40");
+});
+
+test("edgePath: mixed sides turn once and keep the lead into the target", () => {
+  const d = edgePath({ x: 0, y: 0, side: "bottom" }, { x: 40, y: 40, side: "right" });
+  assert.equal(d, "M 0,0 L 0,40 L 56,40 L 40,40");
+});
+
+test("edgeMidpoint: sits halfway along the route", () => {
+  const mid = edgeMidpoint({ x: 0, y: 0, side: "bottom" }, { x: 40, y: 40, side: "top" });
+  assert.deepEqual(mid, { x: 20, y: 20 });
 });
 
 test("escapeXml: escapes markup", () => {
@@ -153,6 +174,54 @@ test("parseFlowDoc: round-trips a resized node", () => {
   doc.nodes[1].h = 200;
   const back = parseFlowDoc(serializeFlowDoc(doc));
   assert.deepEqual(back, doc);
+});
+
+test("parseFlowDoc: round-trips connector sides", () => {
+  const doc = sampleFlowDoc();
+  doc.edges[0].sourceHandle = "r";
+  doc.edges[0].targetHandle = "l";
+  const back = parseFlowDoc(serializeFlowDoc(doc));
+  assert.deepEqual(back, doc);
+});
+
+test("parseFlowDoc: drops default sides so plain docs stay tidy", () => {
+  const doc = sampleFlowDoc();
+  doc.edges[0].sourceHandle = "b";
+  doc.edges[0].targetHandle = "t";
+  const back = parseFlowDoc(serializeFlowDoc(doc));
+  assert.equal(back.edges[0].sourceHandle, undefined);
+  assert.equal(back.edges[0].targetHandle, undefined);
+});
+
+test("parseFlowDoc: docs without sides still load (v1 files)", () => {
+  const doc = parseFlowDoc(
+    '{"nodes":[{"id":"a","kind":"process","x":0,"y":0,"label":""},{"id":"b","kind":"process","x":0,"y":200,"label":""}],"edges":[{"id":"e","source":"a","target":"b"}]}'
+  );
+  assert.equal(doc.edges[0].sourceHandle, undefined);
+  assert.equal(doc.edges[0].targetHandle, undefined);
+});
+
+test("parseFlowDoc: rejects an unknown side", () => {
+  assert.throws(
+    () =>
+      parseFlowDoc(
+        '{"nodes":[{"id":"a","kind":"process","x":0,"y":0,"label":""}],"edges":[{"id":"e","source":"a","target":"a","sourceHandle":"z"}]}'
+      ),
+    /unknown source side/
+  );
+});
+
+test("flowToSvg: routes a connection from the side it was drawn from", () => {
+  const doc = sampleFlowDoc();
+  doc.edges[0].sourceHandle = "r";
+  doc.edges[0].targetHandle = "l";
+  const svg = flowToSvg(doc, measure);
+  // Leaves the right of `start` (60+160, 24+30) and enters the left of
+  // `process-1` (55, 124+42), with the 16px lead kept on both ends.
+  assert.ok(
+    svg.includes("M 220,54 L 236,54 L 137.5,54 L 137.5,166 L 39,166 L 55,166"),
+    svg.slice(0, 600)
+  );
 });
 
 test("docBounds + flowToSvg: reflect a resized node", () => {

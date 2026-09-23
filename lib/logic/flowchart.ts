@@ -16,11 +16,17 @@ export type FlowNode = {
   h?: number;
 };
 
+/** Which edge of a shape a connector leaves from / arrives at. */
+export type FlowSide = "top" | "right" | "bottom" | "left";
+
 export type FlowEdge = {
   id: string;
   source: string;
   target: string;
   label?: string;
+  /** Handle ids ("t"/"r"/"b"/"l"). Absent = first handle (bottom → top). */
+  sourceHandle?: string;
+  targetHandle?: string;
 };
 
 export type FlowDoc = {
@@ -59,6 +65,34 @@ export const NODE_MIN: Record<FlowNodeKind, { w: number; h: number }> = {
 
 // ponytail: generous ceiling that only stops tab-crashing exports, not legit diagrams.
 export const MAX_NODE_SIZE = 800;
+
+export const FLOW_SIDES: FlowSide[] = ["top", "right", "bottom", "left"];
+
+export const SIDE_LABELS: Record<FlowSide, string> = {
+  top: "Top",
+  right: "Right",
+  bottom: "Bottom",
+  left: "Left",
+};
+
+// Handle ids are the side initials so a doc stays readable by hand.
+export const HANDLE_IDS: Record<FlowSide, string> = {
+  top: "t",
+  right: "r",
+  bottom: "b",
+  left: "l",
+};
+
+export const handleFromSide = (side: FlowSide): string => HANDLE_IDS[side];
+
+/** Defaults mirror the v1 look: leave the bottom, arrive at the top. */
+export function sideFromHandle(
+  handleId: string | undefined | null,
+  fallback: FlowSide = "bottom"
+): FlowSide {
+  const match = FLOW_SIDES.find((s) => HANDLE_IDS[s] === handleId);
+  return match ?? fallback;
+}
 
 export const DEFAULT_FILL = "#ffffff";
 export const DEFAULT_STROKE = "#334155";
@@ -118,11 +152,115 @@ export function nodePath(kind: FlowNodeKind, w: number, h: number): string {
   }
 }
 
-/** Vertical mid-elbow connector: down from source, across, down into target. */
-export function edgePath(x1: number, y1: number, x2: number, y2: number): string {
-  const midY = r2((y1 + y2) / 2);
-  if (r2(x1) === r2(x2)) return `M ${r2(x1)},${r2(y1)} V ${r2(y2)}`;
-  return `M ${r2(x1)},${r2(y1)} V ${midY} H ${r2(x2)} V ${r2(y2)}`;
+// How far a connector travels straight out of a shape before it may turn.
+const LEAD = 16;
+
+const OUTWARD: Record<FlowSide, { x: number; y: number }> = {
+  top: { x: 0, y: -1 },
+  right: { x: 1, y: 0 },
+  bottom: { x: 0, y: 1 },
+  left: { x: -1, y: 0 },
+};
+
+export type FlowAnchor = { x: number; y: number; side: FlowSide };
+
+/** Handle point on a node's edge, in canvas coordinates. */
+export function sideAnchor(node: FlowNode, side: FlowSide): { x: number; y: number } {
+  const { w, h } = nodeSize(node);
+  switch (side) {
+    case "top":
+      return { x: node.x + w / 2, y: node.y };
+    case "bottom":
+      return { x: node.x + w / 2, y: node.y + h };
+    case "left":
+      return { x: node.x, y: node.y + h / 2 };
+    case "right":
+      return { x: node.x + w, y: node.y + h / 2 };
+  }
+}
+
+const isVerticalSide = (side: FlowSide) => side === "top" || side === "bottom";
+
+const leadPoint = (a: FlowAnchor) => ({
+  x: a.x + OUTWARD[a.side].x * LEAD,
+  y: a.y + OUTWARD[a.side].y * LEAD,
+});
+
+/**
+ * Drop duplicate points and midpoints that just sit on a straight run, so paths
+ * stay compact. A point is only redundant when it lies *between* its neighbours
+ * — a collinear point beyond them is a deliberate lead (or backtrack) and is kept.
+ */
+function simplify(points: { x: number; y: number }[]): { x: number; y: number }[] {
+  const between = (a: number, b: number, c: number) =>
+    (a <= b && b <= c) || (a >= b && b >= c);
+  const out: { x: number; y: number }[] = [];
+  for (const p of points) {
+    const prev = out[out.length - 1];
+    if (prev && r2(prev.x) === r2(p.x) && r2(prev.y) === r2(p.y)) continue;
+    while (out.length >= 2) {
+      const a = out[out.length - 2];
+      const b = out[out.length - 1];
+      const horizontal =
+        r2(a.y) === r2(b.y) && r2(b.y) === r2(p.y) && between(a.x, b.x, p.x);
+      const vertical = r2(a.x) === r2(b.x) && r2(b.x) === r2(p.x) && between(a.y, b.y, p.y);
+      if (!horizontal && !vertical) break;
+      out.pop();
+    }
+    out.push(p);
+  }
+  return out;
+}
+
+/**
+ * Orthogonal route between two anchors: out of the source side, into the target
+ * side, via a single mid-run. Vertical-to-vertical keeps the classic bottom→top
+ * elbow; mixed orientations turn once at the corner.
+ */
+export function edgePoints(from: FlowAnchor, to: FlowAnchor): { x: number; y: number }[] {
+  const a = leadPoint(from);
+  const b = leadPoint(to);
+  const vFrom = isVerticalSide(from.side);
+  const vTo = isVerticalSide(to.side);
+
+  if (vFrom && vTo) {
+    const midY = r2((a.y + b.y) / 2);
+    return simplify([from, a, { x: a.x, y: midY }, { x: b.x, y: midY }, b, to]);
+  }
+  if (!vFrom && !vTo) {
+    const midX = r2((a.x + b.x) / 2);
+    return simplify([from, a, { x: midX, y: a.y }, { x: midX, y: b.y }, b, to]);
+  }
+  if (vFrom) return simplify([from, a, { x: a.x, y: b.y }, b, to]);
+  return simplify([from, a, { x: b.x, y: a.y }, b, to]);
+}
+
+/** SVG path for a connector between two sided anchors. */
+export function edgePath(from: FlowAnchor, to: FlowAnchor): string {
+  const pts = edgePoints(from, to);
+  return `M ${pts.map((p) => `${r2(p.x)},${r2(p.y)}`).join(" L ")}`;
+}
+
+/** Point halfway along the route (by length) — where a label sits. */
+export function edgeMidpoint(from: FlowAnchor, to: FlowAnchor): { x: number; y: number } {
+  const pts = edgePoints(from, to);
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) {
+    total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+  }
+  let remaining = total / 2;
+  for (let i = 1; i < pts.length; i++) {
+    const dx = pts[i].x - pts[i - 1].x;
+    const dy = pts[i].y - pts[i - 1].y;
+    const len = Math.hypot(dx, dy);
+    if (len > 0 && remaining <= len) {
+      const t = remaining / len;
+      return { x: r2(pts[i - 1].x + dx * t), y: r2(pts[i - 1].y + dy * t) };
+    }
+    remaining -= len;
+  }
+  const last = pts[pts.length - 1];
+  return { x: r2(last.x), y: r2(last.y) };
 }
 
 export function escapeXml(value: string): string {
@@ -190,6 +328,15 @@ function isFiniteNumber(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v);
 }
 
+/** Validate an optional handle id from a doc, with a user-facing message on failure. */
+function sideHandleOrThrow(value: unknown, edgeId: string, name: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || !FLOW_SIDES.some((s) => HANDLE_IDS[s] === value)) {
+    throw new Error(`Connection "${edgeId}" has an unknown ${name}.`);
+  }
+  return value;
+}
+
 /** Parse + validate a flowchart JSON document. Throws with a user-facing message. */
 export function parseFlowDoc(input: string): FlowDoc {
   let raw: unknown;
@@ -247,7 +394,7 @@ export function parseFlowDoc(input: string): FlowDoc {
 
   const parsedEdges: FlowEdge[] = edges.map((e, i) => {
     if (!isRecord(e)) throw new Error(`Connection ${i + 1} is malformed.`);
-    const { id, source, target, label } = e;
+    const { id, source, target, label, sourceHandle, targetHandle } = e;
     if (typeof id !== "string" || !id) throw new Error(`Connection ${i + 1} is missing an id.`);
     if (typeof source !== "string" || !ids.has(source)) {
       throw new Error(`Connection "${id}" points from an unknown node.`);
@@ -261,7 +408,17 @@ export function parseFlowDoc(input: string): FlowDoc {
     if (typeof label === "string" && label.length > 200) {
       throw new Error(`Connection "${id}" has too much label text (max 200 characters).`);
     }
-    return { id, source, target, ...(label ? { label: label.slice(0, 200) } : {}) };
+    const src = sideHandleOrThrow(sourceHandle, id, "source side");
+    const tgt = sideHandleOrThrow(targetHandle, id, "target side");
+    return {
+      id,
+      source,
+      target,
+      ...(label ? { label: label.slice(0, 200) } : {}),
+      // Only persist a non-default side, so plain docs stay tidy.
+      ...(src && sideFromHandle(src) !== "bottom" ? { sourceHandle: src } : {}),
+      ...(tgt && sideFromHandle(tgt, "top") !== "top" ? { targetHandle: tgt } : {}),
+    };
   });
 
   return { version: 1, nodes: parsedNodes, edges: parsedEdges };
@@ -330,20 +487,15 @@ export function flowToSvg(doc: FlowDoc, measure: (s: string) => number): string 
     const s = nodeById(doc, e.source);
     const t = nodeById(doc, e.target);
     if (!s || !t) continue;
-    const ss = nodeSize(s);
-    const ts = nodeSize(t);
-    const x1 = r2(s.x + ss.w / 2);
-    const y1 = r2(s.y + ss.h);
-    const x2 = r2(t.x + ts.w / 2);
-    const y2 = r2(t.y);
+    const from = { ...sideAnchor(s, sideFromHandle(e.sourceHandle, "bottom")), side: sideFromHandle(e.sourceHandle, "bottom") };
+    const to = { ...sideAnchor(t, sideFromHandle(e.targetHandle, "top")), side: sideFromHandle(e.targetHandle, "top") };
     parts.push(
-      `<path d="${edgePath(x1, y1, x2, y2)}" fill="none" stroke="${EDGE_STROKE}" stroke-width="2" marker-end="url(#flow-arrow)"/>`
+      `<path d="${edgePath(from, to)}" fill="none" stroke="${EDGE_STROKE}" stroke-width="2" marker-end="url(#flow-arrow)"/>`
     );
     if (e.label) {
-      const midY = r2((y1 + y2) / 2);
-      const lx = r2((x1 + x2) / 2);
+      const mid = edgeMidpoint(from, to);
       parts.push(
-        `<text x="${lx}" y="${r2(midY - 6)}" text-anchor="middle" font-family="${FLOW_FONT}" font-size="12" fill="${EDGE_STROKE}" stroke="#ffffff" stroke-width="4" paint-order="stroke">${escapeXml(e.label)}</text>`
+        `<text x="${mid.x}" y="${r2(mid.y - 6)}" text-anchor="middle" font-family="${FLOW_FONT}" font-size="12" fill="${EDGE_STROKE}" stroke="#ffffff" stroke-width="4" paint-order="stroke">${escapeXml(e.label)}</text>`
       );
     }
   }
