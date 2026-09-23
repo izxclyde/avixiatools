@@ -1,11 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  MAX_NODE_SIZE,
+  NODE_DEFAULTS,
+  NODE_MIN,
   docBounds,
   edgePath,
   escapeXml,
   flowToSvg,
   nodePath,
+  nodeSize,
   parseFlowDoc,
   sampleFlowDoc,
   serializeFlowDoc,
@@ -94,4 +98,68 @@ test("flowToSvg: escapes labels", () => {
 test("docBounds: empty doc gets a default frame", () => {
   const b = docBounds({ version: 1, nodes: [], edges: [] });
   assert.ok(b.w > 0 && b.h > 0);
+});
+
+test("nodeSize: defaults when no custom size", () => {
+  assert.deepEqual(nodeSize({ kind: "process" }), NODE_DEFAULTS.process);
+});
+
+test("nodeSize: honours custom sizes", () => {
+  assert.deepEqual(nodeSize({ kind: "process", w: 400, h: 200 }), { w: 400, h: 200 });
+});
+
+test("nodeSize: clamps below minimum and above ceiling", () => {
+  assert.deepEqual(nodeSize({ kind: "process", w: 1, h: 1 }), NODE_MIN.process);
+  assert.deepEqual(nodeSize({ kind: "process", w: 5000, h: 5000 }), {
+    w: MAX_NODE_SIZE,
+    h: MAX_NODE_SIZE,
+  });
+});
+
+test("nodeSize: non-finite sizes fall back to defaults", () => {
+  assert.deepEqual(nodeSize({ kind: "process", w: NaN, h: NaN }), NODE_DEFAULTS.process);
+});
+
+test("parseFlowDoc: rejects non-finite sizes", () => {
+  assert.throws(
+    () =>
+      parseFlowDoc(
+        '{"nodes":[{"id":"a","kind":"process","x":0,"y":0,"label":"","w":"big"}],"edges":[]}'
+      ),
+    /invalid width/
+  );
+  assert.throws(
+    () =>
+      parseFlowDoc(
+        '{"nodes":[{"id":"a","kind":"process","x":0,"y":0,"label":"","h":null}],"edges":[]}'
+      ),
+    /invalid height/
+  );
+});
+
+test("parseFlowDoc: clamps out-of-range sizes on import", () => {
+  const doc = parseFlowDoc(
+    '{"nodes":[{"id":"a","kind":"process","x":0,"y":0,"label":"","w":1,"h":5000}],"edges":[]}'
+  );
+  assert.deepEqual({ w: doc.nodes[0].w, h: doc.nodes[0].h }, {
+    w: NODE_MIN.process.w,
+    h: MAX_NODE_SIZE,
+  });
+});
+
+test("parseFlowDoc: round-trips a resized node", () => {
+  const doc = sampleFlowDoc();
+  doc.nodes[1].w = 400;
+  doc.nodes[1].h = 200;
+  const back = parseFlowDoc(serializeFlowDoc(doc));
+  assert.deepEqual(back, doc);
+});
+
+test("docBounds + flowToSvg: reflect a resized node", () => {
+  const doc = sampleFlowDoc();
+  doc.nodes[1].w = 400;
+  const b = docBounds(doc);
+  assert.equal(b.w, 400 + 48 * 2);
+  const svg = flowToSvg(doc, measure);
+  assert.ok(svg.includes('width="496"'));
 });
