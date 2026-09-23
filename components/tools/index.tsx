@@ -9,6 +9,7 @@ import SqlConverter from "@/components/tools/sql-converter";
 import SqlToCode from "@/components/tools/sql-to-code";
 import SqlFormatter from "@/components/tools/sql-formatter";
 import QrGenerator from "@/components/tools/qr-generator";
+import FlowchartCreator from "@/components/tools/flowchart-creator";
 import BarcodeGenerator from "@/components/tools/barcode-generator";
 import BackgroundRemover from "@/components/tools/background-remover";
 import MergePdf from "@/components/tools/merge-pdf";
@@ -47,6 +48,7 @@ export const toolComponents: Record<string, React.ComponentType> = {
   "sql-to-code": SqlToCode,
   "sql-formatter": SqlFormatter,
   "qr-generator": QrGenerator,
+  "flowchart-creator": FlowchartCreator,
   "barcode-generator": BarcodeGenerator,
   "background-remover": BackgroundRemover,
   "merge-pdf": MergePdf,

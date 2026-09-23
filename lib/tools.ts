@@ -180,6 +180,12 @@ export const TOOLS: Tool[] = [
     description: "Generate styled QR codes with custom colors, shapes, and logos",
   },
   {
+    slug: "flowchart-creator",
+    name: "Flowchart Creator",
+    category: "other",
+    description: "Build flowcharts on a canvas and export PNG, SVG, or JSON",
+  },
+  {
     slug: "barcode-generator",
     name: "Barcode Generator",
     category: "other",
